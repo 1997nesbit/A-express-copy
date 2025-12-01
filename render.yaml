@@ -1,0 +1,50 @@
+services:
+  - type: web
+    name: frontend
+    env: node
+    buildCommand: pnpm install && pnpm run build
+    startCommand: pnpm run start
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: https://backend.onrender.com/api/
+    envVarConfig:
+      - key: NODE_VERSION
+        value: "18"
+    routes:
+      - type: path
+        path: /
+        port: 3000
+
+  - type: web
+    name: backend
+    env: python
+    rootDir: django_backend
+    buildCommand: |
+      python -m venv venv
+      source venv/bin/activate
+      pip install -r requirements.txt
+    startCommand: |
+      source venv/bin/activate
+      python manage.py collectstatic --noinput
+      python manage.py migrate
+      gunicorn django_backend.wsgi:application
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: postgres-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: "backend.onrender.com,localhost,127.0.0.1"
+      - key: CORS_ALLOWED_ORIGINS
+        value: "https://frontend.onrender.com,http://localhost:3000"
+      - key: PYTHON_VERSION
+        value: "3.11"
+
+databases:
+  - name: postgres-db
+    databaseName: inventory_db
+    user: inventory_user
