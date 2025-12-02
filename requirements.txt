@@ -1,9 +1,22 @@
-Django==5.2.3
-django-cors-headers==4.4.0
-djangorestframework==3.15.2
-djangorestframework-simplejwt==5.3.1
-whitenoise==6.8.0
+# Core Django
+Django==5.2.8
+django-cors-headers==4.9.0
+djangorestframework==3.16.1
+djangorestframework-simplejwt==5.5.1
+
+# PostgreSQL driver (FOR RENDER)
 psycopg2-binary==2.9.9
-gunicorn==21.2.0
+
+# MySQL driver (FOR LOCAL DEVELOPMENT ONLY - optional)
+mysqlclient==2.2.7
+
+# Server & Deployment
+gunicorn==23.0.0
+whitenoise==6.8.0
 dj-database-url==2.1.0
-django-extensions==3.2.3
+
+# Utilities
+django-extensions==4.1
+python-dotenv==1.2.1
+Pillow==12.0.0
+
