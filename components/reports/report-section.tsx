@@ -11,7 +11,7 @@ interface ReportSectionProps {
     title: string
     description: string
     reports: ReportCard[]
-    onGeneratePDF: (reportId: string, dateRange?: { start: Date; end: Date }) => void
+    onGeneratePDF: (reportId: string, dateRange?: { start: Date; end: Date }) => void // UPDATED
     onViewReport: (reportId: string, dateRange?: { start: Date; end: Date }) => void
 }
 
@@ -19,7 +19,7 @@ export function ReportSection({
     title,
     description,
     reports,
-    onGeneratePDF,
+    onGeneratePDF, // UPDATED signature
     onViewReport,
 }: ReportSectionProps) {
     const [selectedReport, setSelectedReport] = useState<string | null>(null)
@@ -30,13 +30,13 @@ export function ReportSection({
 
     const handleViewReport = (reportId: string) => {
         const dateRange = getDateRange()
-        onViewReport(reportId, dateRange)
+        onViewReport(reportId, dateRange) // Pass dateRange
         closeDateModal()
     }
 
     const handleGeneratePDF = (reportId: string) => {
         const dateRange = getDateRange()
-        onGeneratePDF(reportId, dateRange)
+        onGeneratePDF(reportId, dateRange) // Pass dateRange
         closeDateModal()
     }
 

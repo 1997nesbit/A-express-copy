@@ -110,12 +110,12 @@ WSGI_APPLICATION = "A_express.wsgi.application"
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.mysql",
-        "NAME": "my_django_api",
-        "USER": "root",
-        "PASSWORD": "",
-        "HOST": "127.0.0.1",
-        "PORT": "3306",
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": "Inventory4",
+        "USER": "postgres",
+        "PASSWORD": "ivan123",
+        "HOST": "localhost",
+        "PORT": "5432",
     }
 }
 
