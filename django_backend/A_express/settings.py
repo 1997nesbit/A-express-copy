@@ -40,6 +40,7 @@ if not SECRET_KEY:
         SECRET_KEY = "dev-only-insecure-key-do-not-use-in-production"
     else:
         from django.core.exceptions import ImproperlyConfigured
+
         raise ImproperlyConfigured(
             "The SECRET_KEY environment variable is required. "
             "Set it in your environment or .env file."
@@ -54,18 +55,18 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
-    
+
     # Railway uses a reverse proxy - trust X-Forwarded-Proto header
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
     # DON'T redirect HTTP→HTTPS - Railway's proxy handles this
     # Setting this to True causes redirect loops with Railway
     SECURE_SSL_REDIRECT = False
-    
+
     # Secure cookies - only send over HTTPS
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
-    
+
     # Prevent browsers from guessing content types
     SECURE_CONTENT_TYPE_NOSNIFF = True
 
@@ -91,7 +92,9 @@ CORS_ALLOWED_ORIGINS = [
 # Ensure FRONTEND_URL has a scheme (https://) before adding to CORS
 if FRONTEND_URL:
     # Add https:// if missing
-    if not FRONTEND_URL.startswith("http://") and not FRONTEND_URL.startswith("https://"):
+    if not FRONTEND_URL.startswith("http://") and not FRONTEND_URL.startswith(
+        "https://"
+    ):
         FRONTEND_URL = f"https://{FRONTEND_URL}"
     if FRONTEND_URL not in CORS_ALLOWED_ORIGINS:
         CORS_ALLOWED_ORIGINS.append(FRONTEND_URL)
@@ -116,18 +119,20 @@ if FRONTEND_URL.startswith("https://"):
 CORS_ALLOW_CREDENTIALS = True
 
 # Cookie settings for JWT tokens
-JWT_AUTH_COOKIE = 'access_token'
-JWT_AUTH_REFRESH_COOKIE = 'refresh_token'
+JWT_AUTH_COOKIE = "access_token"
+JWT_AUTH_REFRESH_COOKIE = "refresh_token"
 JWT_AUTH_COOKIE_SECURE = not DEBUG  # True in production (HTTPS only)
-JWT_AUTH_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'  # None for cross-origin in production
+JWT_AUTH_COOKIE_SAMESITE = (
+    "None" if not DEBUG else "Lax"
+)  # None for cross-origin in production
 JWT_AUTH_COOKIE_HTTPONLY = True  # Prevent JavaScript access
-JWT_AUTH_COOKIE_PATH = '/'
+JWT_AUTH_COOKIE_PATH = "/"
 
 
 # Application definition
 
 # Check if Cloudinary is configured (before INSTALLED_APPS definition)
-_CLOUDINARY_URL = os.environ.get('CLOUDINARY_URL', '')
+_CLOUDINARY_URL = os.environ.get("CLOUDINARY_URL", "")
 _USE_CLOUDINARY = bool(_CLOUDINARY_URL)
 
 # DEBUG: Print to Railway logs on startup
@@ -141,7 +146,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     # For media-only Cloudinary use, cloudinary_storage comes AFTER staticfiles
-    *(['cloudinary_storage', 'cloudinary'] if _USE_CLOUDINARY else []),
+    *(["cloudinary_storage", "cloudinary"] if _USE_CLOUDINARY else []),
     "corsheaders",
     "axes",  # Brute-force protection
     "users",
@@ -151,7 +156,7 @@ INSTALLED_APPS = [
     "customers",
     "rest_framework",
     "reports",
-    'django_extensions',
+    "django_extensions",
 ]
 
 MIDDLEWARE = [
@@ -191,16 +196,41 @@ WSGI_APPLICATION = "A_express.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": "Inventory4",
-        "USER": "postgres",
-        "PASSWORD": "ivan123",
-        "HOST": "localhost",
-        "PORT": "5432",
+# Use DATABASE_URL from Railway if available
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
+if DATABASE_URL:
+    # Production: Use PostgreSQL from Railway
+    DATABASES = {
+        "default": dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
     }
-}
+else:
+    # Local development: Try MySQL, fallback to SQLite
+    try:
+        import MySQLdb  # noqa: F401
+
+        DATABASES = {
+            "default": {
+                "ENGINE": "django.db.backends.postgresql",
+                "NAME": "Inventory4",
+                "USER": "postgres",
+                "PASSWORD": "ivan123",
+                "HOST": "localhost",
+                "PORT": "5432",
+            }
+        }
+    except ImportError:
+        # SQLite fallback if MySQL not available
+        DATABASES = {
+            "default": {
+                "ENGINE": "django.db.backends.sqlite3",
+                "NAME": BASE_DIR / "db.sqlite3",
+            }
+        }
 
 
 AUTH_USER_MODEL = "users.User"
@@ -234,52 +264,47 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 if _USE_CLOUDINARY:
     # Parse CLOUDINARY_URL: cloudinary://API_KEY:API_SECRET@CLOUD_NAME
     import cloudinary
-    
+
     cloudinary_url = _CLOUDINARY_URL
-    _cloud_name = ''
-    _api_key = ''
-    _api_secret = ''
-    
-    if cloudinary_url.startswith('cloudinary://'):
+    _cloud_name = ""
+    _api_key = ""
+    _api_secret = ""
+
+    if cloudinary_url.startswith("cloudinary://"):
         url_without_protocol = cloudinary_url[13:]
-        if '@' in url_without_protocol:
-            credentials, _cloud_name = url_without_protocol.rsplit('@', 1)
-            if ':' in credentials:
-                _api_key, _api_secret = credentials.split(':', 1)
-    
+        if "@" in url_without_protocol:
+            credentials, _cloud_name = url_without_protocol.rsplit("@", 1)
+            if ":" in credentials:
+                _api_key, _api_secret = credentials.split(":", 1)
+
     # Configure cloudinary library directly
     cloudinary.config(
-        cloud_name=_cloud_name,
-        api_key=_api_key,
-        api_secret=_api_secret,
-        secure=True
+        cloud_name=_cloud_name, api_key=_api_key, api_secret=_api_secret, secure=True
     )
 
-    
     # CRITICAL: django-cloudinary-storage reads from this settings dict
     CLOUDINARY_STORAGE = {
-        'CLOUD_NAME': _cloud_name,
-        'API_KEY': _api_key,
-        'API_SECRET': _api_secret,
+        "CLOUD_NAME": _cloud_name,
+        "API_KEY": _api_key,
+        "API_SECRET": _api_secret,
     }
-    
+
     # Django 5.1+ uses STORAGES dict instead of DEFAULT_FILE_STORAGE
     STORAGES = {
-        'default': {
-            'BACKEND': 'cloudinary_storage.storage.MediaCloudinaryStorage',
+        "default": {
+            "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
         },
-        'staticfiles': {
-            'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
         },
     }
-    MEDIA_URL = '/media/'
+    MEDIA_URL = "/media/"
 else:
     # Local development - use filesystem storage
     MEDIA_URL = "/api/media/"
 
 STATIC_URL = "/static/"
 STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
-
 
 
 # Password validation
