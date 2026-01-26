@@ -1,0 +1,51 @@
+name: Deploy Next.js + Django to Contabo VPS
+
+on:
+  push:
+    branches: [ main ]  # Only deploy when pushing to 'main'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Check out your code from GitHub
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Deploy via SSH to your VPS
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /var/www/express-copy/A-express-copy
+            git pull origin main
+
+            # Build & restart Next.js frontend
+            npm install
+            npm run build
+            pm2 reload nextjs-app || pm2 start ecosystem.config.js
+
+            # Update Django backend
+            cd django_backend
+            source env/bin/activate
+            pip install -r requirements.txt
+            python manage.py migrate --noinput
+            python manage.py collectstatic --noinput
+
+            # Restart Gunicorn (Django server)
+            sudo systemctl restart gunicorn
+
+            # Optional: Reload Nginx if config changed
+            # sudo nginx -t && sudo systemctl reload nginx
+
+      # 3. Verify the site is working
+      - name: Verify deployment
+        run: |
+          sleep 15  # Wait for services to fully restart
+          curl -f http://${{ secrets.VPS_HOST }}/api/health-check/ || exit 1
+          curl -f http://${{ secrets.VPS_HOST }}/ || exit 1
+          
