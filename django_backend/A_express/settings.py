@@ -77,6 +77,7 @@ FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
+    "5.189.189.109",
     "healthcheck.railway.app",  # Railway healthcheck
     ".railway.app",  # All Railway subdomains
 ]
@@ -86,6 +87,8 @@ if RAILWAY_DOMAIN:
 # CORS settings for allowing frontend to access backend
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
+    "http://5.189.189.109:3000",
+    "https://5.189.189.109:3000",
     "http://127.0.0.1:3000",
 ]
 
@@ -110,6 +113,10 @@ CSRF_TRUSTED_ORIGINS = [
     "https://localhost:8000",
     "https://127.0.0.1:8000",
     "https://*.app.github.dev",
+    "http://5.189.189.109:3000",
+    "https://5.189.189.109:3000",
+    "http://5.189.189.109",
+    "https://5.189.189.109",
     "https://*.railway.app",
 ]
 if FRONTEND_URL.startswith("https://"):
@@ -147,7 +154,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     # For media-only Cloudinary use, cloudinary_storage comes AFTER staticfiles
-    *(['cloudinary_storage', 'cloudinary'] if _USE_CLOUDINARY else []),
+    *(["cloudinary_storage", "cloudinary"] if _USE_CLOUDINARY else []),
     "channels",  # Django Channels for WebSocket support
     "corsheaders",
     "axes",  # Brute-force protection
@@ -161,8 +168,8 @@ INSTALLED_APPS = [
     "messaging",  # SMS messaging via Briq
     "settings",  # System settings
     "notifications",  # WebSocket notifications
-    'django_extensions',
-    'django_apscheduler',  # Background task scheduling
+    "django_extensions",
+    "django_apscheduler",  # Background task scheduling
 ]
 
 MIDDLEWARE = [
@@ -203,14 +210,18 @@ ASGI_APPLICATION = "A_express.asgi.application"
 # InMemoryChannelLayer for single-instance deployment
 # Switch to Redis if scaling to multiple instances
 CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            'hosts': [os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379')],
-        },
-    } if os.environ.get('REDIS_URL') else {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer',
-    }
+    "default": (
+        {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [os.environ.get("REDIS_URL", "redis://127.0.0.1:6379")],
+            },
+        }
+        if os.environ.get("REDIS_URL")
+        else {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        }
+    )
 }
 
 
@@ -389,12 +400,11 @@ AXES_VERBOSE = False  # Don't log to console in production
 # Briq SMS API Configuration
 # =============================================================================
 # Get your API key from: https://briq.tz/login
-BRIQ_API_KEY = os.environ.get('BRIQ_API_KEY', '')
-BRIQ_SENDER_ID = os.environ.get('BRIQ_SENDER_ID', 'A-EXPRESS')
+BRIQ_API_KEY = os.environ.get("BRIQ_API_KEY", "")
+BRIQ_SENDER_ID = os.environ.get("BRIQ_SENDER_ID", "A-EXPRESS")
 
 # =============================================================================
 # APScheduler Configuration
 # =============================================================================
 APSCHEDULER_DATETIME_FORMAT = "N j, Y, f:s a"
 APSCHEDULER_RUN_NOW_TIMEOUT = 25  # Seconds
-
