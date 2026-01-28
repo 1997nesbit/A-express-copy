@@ -108,10 +108,72 @@ jobs:
           "
           
       # 7. Verify Deployment
+# 7. Verify Deployment
       - name: Verify deployment
         run: |
           sleep 10
+          
+          echo "=========================================="
+          echo "🔍 DEPLOYMENT VERIFICATION"
+          echo "=========================================="
+          
           # Test Django API
-          curl -f http://${{ secrets.VPS_HOST }}/api/auth/me/ || echo "API test failed (401 is OK if not logged in)"
-          # Test frontend
-          curl -f http://${{ secrets.VPS_HOST }}/ || echo "Frontend test failed"
+          echo -e "\n📦 BACKEND CHECKS:"
+          echo "Testing Django API endpoint..."
+          curl -s -w "\nHTTP Status: %{http_code}\n" \
+            -H "Accept: application/json" \
+            http://${{ secrets.VPS_HOST }}/api/auth/me/ || echo "API test failed (401 is OK if not logged in)"
+          
+          # Test backend location and status
+          echo -e "\n📍 BACKEND LOCATION & STATUS:"
+          ssh vps "
+            echo 'Current directory:' \$(pwd)
+            echo 'Django backend path:' \$(readlink -f /home/aexpress/django_backend)
+            echo 'Python version:' \$(source /home/aexpress/django_backend/venv/bin/activate && python --version)
+            echo 'Django status:' \$(curl -s http://localhost:8000/api/auth/me/ | head -c 100)
+          "
+          
+          # Test Frontend
+          echo -e "\n🎨 FRONTEND CHECKS:"
+          echo "Testing frontend endpoint..."
+          curl -s -w "\nHTTP Status: %{http_code}\n" \
+            -H "Accept: text/html" \
+            http://${{ secrets.VPS_HOST }}/ || echo "Frontend test failed"
+          
+          # Test frontend location and build
+          echo -e "\n📍 FRONTEND LOCATION & STATUS:"
+          ssh vps "
+            echo 'Frontend path:' \$(readlink -f /home/aexpress)
+            echo 'Node version:' \$(export PATH=\"/usr/local/nodejs20/bin:\$PATH\" && node --version)
+            echo 'Next.js version:' \$(cd /home/aexpress && npm list next 2>/dev/null | head -n 1)
+            echo 'Build directory exists:' \$(ls -la /home/aexpress/.next 2>/dev/null | head -n 3 || echo 'Not found')
+          "
+          
+          # Check User & System Info
+          echo -e "\n👤 USER & SYSTEM INFO:"
+          ssh vps "
+            echo 'Current user:' \$(whoami)
+            echo 'User home:' \$HOME
+            echo 'System uptime:' \$(uptime -p)
+            echo 'Disk usage:' \$(df -h /home | tail -n 1)
+            echo 'Memory usage:' \$(free -h | grep Mem)
+          "
+          
+          # Check PM2 Services
+          echo -e "\n⚙️  PM2 SERVICES STATUS:"
+          ssh vps "
+            export PATH=\"/usr/local/nodejs20/bin:\$PATH\"
+            pm2 status || echo 'PM2 not running'
+            pm2 list || echo 'No PM2 processes found'
+          "
+          
+          # Final connectivity test
+          echo -e "\n🌐 FINAL CONNECTIVITY TEST:"
+          ssh vps "
+            echo 'Can reach localhost:8000 (Django):' \$(curl -s http://localhost:8000/api/auth/me/ >/dev/null && echo '✅ YES' || echo '❌ NO')
+            echo 'Can reach localhost:3000 (Next.js):' \$(curl -s http://localhost:3000 >/dev/null && echo '✅ YES' || echo '❌ NO')
+          "
+          
+          echo -e "\n=========================================="
+          echo "✅ VERIFICATION COMPLETE"
+          echo "=========================================="
