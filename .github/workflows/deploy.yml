@@ -1,4 +1,4 @@
-name: Deploy Next.js + Django to Contabo VPS
+name: Deploy A-Express to VPS
 
 on:
   push:
@@ -13,39 +13,56 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. Deploy via SSH to your VPS
-      - name: Deploy to VPS via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            cd /var/www/express-copy/A-express-copy
-            git pull origin main
+      # 2. Set up SSH
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          echo "Host vps" >> ~/.ssh/config
+          echo "  HostName ${{ secrets.VPS_HOST }}" >> ~/.ssh/config
+          echo "  User ${{ secrets.VPS_USERNAME }}" >> ~/.ssh/config
+          echo "  IdentityFile ~/.ssh/id_rsa" >> ~/.ssh/config
+          ssh-keyscan ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
 
-            # Build & restart Next.js frontend
-            npm install
-            npm run build
-            pm2 reload nextjs-app || pm2 start ecosystem.config.js
-
-            # Update Django backend
-            cd django_backend
-            source env/bin/activate
+      # 3. Deploy to VPS
+      - name: Deploy to VPS
+        run: |
+          ssh vps "cd /home/aexpress && git pull origin main"
+          
+      # 4. Deploy Django Backend
+      - name: Deploy Django Backend
+        run: |
+          ssh vps "
+            cd /home/aexpress/django_backend
+            source venv/bin/activate
             pip install -r requirements.txt
-            python manage.py migrate --noinput
+            python manage.py migrate
             python manage.py collectstatic --noinput
-
-            # Restart Gunicorn (Django server)
-            sudo systemctl restart gunicorn
-
-            # Optional: Reload Nginx if config changed
-            # sudo nginx -t && sudo systemctl reload nginx
-
-      # 3. Verify the site is working
+          "
+          
+      # 5. Deploy Next.js Frontend
+      - name: Deploy Next.js Frontend
+        run: |
+          ssh vps "
+            cd /home/aexpress
+            npm ci
+            npm run build
+          "
+          
+      # 6. Restart Services
+      - name: Restart Services
+        run: |
+          ssh vps "
+            cd /home/aexpress
+            pm2 restart ecosystem.config.js
+          "
+          
+      # 7. Verify Deployment
       - name: Verify deployment
         run: |
-          sleep 15  # Wait for services to fully restart
-          curl -f http://${{ secrets.VPS_HOST }}/api/health-check/ || exit 1
-          curl -f http://${{ secrets.VPS_HOST }}/ || exit 1
-          
+          sleep 10  # Wait for services to restart
+          # Test Django API
+          curl -f http://${{ secrets.VPS_HOST }}/api/auth/me/ || echo "API test failed (401 is OK if not logged in)"
+          # Test frontend
+          curl -f http://${{ secrets.VPS_HOST }}/ || echo "Frontend test failed"

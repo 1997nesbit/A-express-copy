@@ -89,7 +89,7 @@ export function FrontDeskDashboard() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ClipboardList className="h-5 w-5" />
-              Create New Task
+              Create New Taskdfghjk
             </CardTitle>
             <CardDescription>Register a new repair task for a customer.</CardDescription>
           </CardHeader>

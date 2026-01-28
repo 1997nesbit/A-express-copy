@@ -52,6 +52,7 @@ DEBUG = os.environ.get("DEBUG", "False").lower() in ("true", "1", "yes")
 # Production security settings for data in transit
 if not DEBUG:
     # HTTP Strict Transport Security - force HTTPS for 1 year
+
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
@@ -59,13 +60,13 @@ if not DEBUG:
     # Railway uses a reverse proxy - trust X-Forwarded-Proto header
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
-    # DON'T redirect HTTP→HTTPS - Railway's proxy handles this
+    # DON'T redirect HTTPâ†’HTTPS - Railway's proxy handles this
     # Setting this to True causes redirect loops with Railway
     SECURE_SSL_REDIRECT = False
 
     # Secure cookies - only send over HTTPS
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
 
     # Prevent browsers from guessing content types
     SECURE_CONTENT_TYPE_NOSNIFF = True
@@ -229,10 +230,14 @@ CHANNEL_LAYERS = {
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 # Use DATABASE_URL from Railway if available
+# Database
+# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+
+# Use DATABASE_URL from Railway if available
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 if DATABASE_URL:
-    # Production: Use PostgreSQL from Railway
+    # Production: Use DATABASE_URL from Railway
     DATABASES = {
         "default": dj_database_url.config(
             default=DATABASE_URL,
@@ -241,29 +246,17 @@ if DATABASE_URL:
         )
     }
 else:
-    # Local development: Try MySQL, fallback to SQLite
-    try:
-        import MySQLdb  # noqa: F401
-
-        DATABASES = {
-            "default": {
-                "ENGINE": "django.db.backends.postgresql",
-                "NAME": "Inventory4",
-                "USER": "postgres",
-                "PASSWORD": "ivan123",
-                "HOST": "localhost",
-                "PORT": "5432",
-            }
+    # Local development: Use direct PostgreSQL connection
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.environ.get("POSTGRES_DB", "Inventory"),
+            "USER": os.environ.get("POSTGRES_USER", "postgres"),
+            "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "ivan123"),
+            "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
+            "PORT": os.environ.get("POSTGRES_PORT", "5432"),
         }
-    except ImportError:
-        # SQLite fallback if MySQL not available
-        DATABASES = {
-            "default": {
-                "ENGINE": "django.db.backends.sqlite3",
-                "NAME": BASE_DIR / "db.sqlite3",
-            }
-        }
-
+    }
 
 AUTH_USER_MODEL = "users.User"
 
