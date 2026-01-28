@@ -88,12 +88,14 @@ jobs:
             npm run build
           "
           
-      # 6. Restart Services
       - name: Restart Services
         run: |
           ssh vps "
+            export PATH=\"/usr/local/nodejs20/bin:\$PATH\"
             cd /home/aexpress
             pm2 restart ecosystem.config.js
+            echo 'PM2 status:'
+            pm2 status
           "
           
       # 7. Verify Deployment
