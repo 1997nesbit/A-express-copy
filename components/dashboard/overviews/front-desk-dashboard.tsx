@@ -45,7 +45,7 @@ export function FrontDeskDashboard() {
     <div className="flex-1 space-y-6 p-6">
       {/* Header Section */}
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Front Desk Dashboard.....................</h2>
+        <h2 className="text-3xl font-bold tracking-tight">Front </h2>
         <p className="text-muted-foreground">Customer service and task coordination center.</p>
       </div>
 
