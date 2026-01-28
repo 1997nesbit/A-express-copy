@@ -75,8 +75,9 @@ jobs:
         run: |
           ssh vps "
             cd /home/aexpress
-            npm ci
-            npm run build
+            # Use the correct npm path from your VPS
+            /usr/local/nodejs20/bin/npm ci --only=production
+            /usr/local/nodejs20/bin/npm run build
           "
           
       # 6. Restart Services
