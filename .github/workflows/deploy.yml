@@ -82,7 +82,7 @@ jobs:
             npm rebuild
             
             echo '=== Installing dependencies ==='
-            npm install --only=production
+            npm install 
             
             echo '=== Building Next.js ==='
             npm run build
