@@ -93,7 +93,16 @@ jobs:
           ssh vps "
             export PATH=\"/usr/local/nodejs20/bin:\$PATH\"
             cd /home/aexpress
-            pm2 restart ecosystem.config.js
+            
+            # Check if ecosystem.config.js exists
+            if [ -f ecosystem.config.js ]; then
+              echo 'Restarting with ecosystem.config.js...'
+              pm2 restart ecosystem.config.js
+            else
+              echo 'ecosystem.config.js not found, restarting by name...'
+              pm2 restart aexpress-backend aexpress-frontend
+            fi
+            
             echo 'PM2 status:'
             pm2 status
           "
