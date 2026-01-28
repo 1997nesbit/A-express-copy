@@ -45,7 +45,7 @@ export function FrontDeskDashboard() {
     <div className="flex-1 space-y-6 p-6">
       {/* Header Section */}
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Front Desk Dashboard</h2>
+        <h2 className="text-3xl font-bold tracking-tight">Front Desk Dashboard.....................</h2>
         <p className="text-muted-foreground">Customer service and task coordination center.</p>
       </div>
 
@@ -89,7 +89,7 @@ export function FrontDeskDashboard() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ClipboardList className="h-5 w-5" />
-              Create New Taskdfghjk
+              Create New Task
             </CardTitle>
             <CardDescription>Register a new repair task for a customer.</CardDescription>
           </CardHeader>
