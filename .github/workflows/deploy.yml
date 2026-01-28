@@ -2,7 +2,7 @@ name: Deploy A-Express to VPS
 
 on:
   push:
-    branches: [ main ]  # Only deploy when pushing to 'main'
+    branches: [ main ]
 
 jobs:
   deploy:
@@ -13,17 +13,46 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. Set up SSH
+      # 2. Set up SSH WITH DEBUGGING
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          
+          # Debug: Show key info
+          echo "=== DEBUG: Checking SSH Key ==="
+          echo "Key length: ${#VPS_SSH_KEY}"
+          echo "${{ secrets.VPS_SSH_KEY }}" | head -n 2
+          echo "=== END DEBUG ==="
+          
+          # Save key
           echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          echo "Host vps" >> ~/.ssh/config
-          echo "  HostName ${{ secrets.VPS_HOST }}" >> ~/.ssh/config
-          echo "  User ${{ secrets.VPS_USERNAME }}" >> ~/.ssh/config
-          echo "  IdentityFile ~/.ssh/id_rsa" >> ~/.ssh/config
-          ssh-keyscan ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+          
+          # Create config PROPERLY
+          cat > ~/.ssh/config << EOF
+          Host vps
+            HostName ${{ secrets.VPS_HOST }}
+            User ${{ secrets.VPS_USERNAME }}
+            IdentityFile ~/.ssh/id_rsa
+            StrictHostKeyChecking no
+            ConnectTimeout 10
+          EOF
+          
+          chmod 600 ~/.ssh/config
+          
+          # Add to known_hosts
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+          
+          # Test the key
+          echo "Testing SSH key format..."
+          ssh-keygen -l -f ~/.ssh/id_rsa || echo "Key format issue"
+
+      # 2.5 TEST SSH CONNECTION FIRST
+      - name: Test SSH Connection
+        run: |
+          echo "Testing SSH connection..."
+          ssh -v vps "echo '✅ SSH Connected!'; whoami; pwd" || echo "❌ SSH failed"
 
       # 3. Deploy to VPS
       - name: Deploy to VPS
@@ -61,7 +90,7 @@ jobs:
       # 7. Verify Deployment
       - name: Verify deployment
         run: |
-          sleep 10  # Wait for services to restart
+          sleep 10
           # Test Django API
           curl -f http://${{ secrets.VPS_HOST }}/api/auth/me/ || echo "API test failed (401 is OK if not logged in)"
           # Test frontend
