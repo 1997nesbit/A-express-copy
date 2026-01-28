@@ -1,0 +1,42 @@
+name: Debug SSH Connection
+
+on: workflow_dispatch
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Secrets
+        run: |
+          echo "=== Checking Secrets ==="
+          echo "VPS_HOST exists: ${{ secrets.VPS_HOST != '' }}"
+          echo "VPS_USERNAME exists: ${{ secrets.VPS_USERNAME != '' }}"
+          echo "VPS_SSH_KEY exists: ${{ secrets.VPS_SSH_KEY != '' }}"
+          echo "VPS_USERNAME value: ${{ secrets.VPS_USERNAME }}"
+          echo "VPS_HOST value: ${{ secrets.VPS_HOST }}"
+          
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          
+          # Save the key
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/test_key
+          chmod 600 ~/.ssh/test_key
+          
+          # Check key
+          echo "=== Key Info ==="
+          ls -la ~/.ssh/test_key
+          echo "First line: $(head -n 1 ~/.ssh/test_key)"
+          echo "Last line: $(tail -n 1 ~/.ssh/test_key)"
+          echo "Line count: $(wc -l < ~/.ssh/test_key)"
+          
+      - name: Test Connection
+        run: |
+          echo "=== Testing Connection ==="
+          ssh -v -i ~/.ssh/test_key \
+              -o StrictHostKeyChecking=no \
+              -o ConnectTimeout=5 \
+              ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }} \
+              "echo '✅ SSH Success!'; exit 0" \
+          || echo "❌ SSH Failed"
