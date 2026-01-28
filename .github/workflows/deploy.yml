@@ -75,21 +75,18 @@ jobs:
         run: |
           ssh vps "
             cd /home/aexpress
-            # Ensure correct PATH for npm
             export PATH=\"/usr/local/nodejs20/bin:\$PATH\"
             
-            echo '=== Node/NPM Versions ==='
-            node --version
-            npm --version
+            echo '=== Rebuilding native modules ==='
+            # Rebuild native modules for current platform
+            npm rebuild
             
             echo '=== Installing dependencies ==='
-            # If npm ci fails, use npm install
-            npm ci --only=production || npm install --only=production
+            npm install --only=production
             
             echo '=== Building Next.js ==='
             npm run build
           "
-
           
       # 6. Restart Services
       - name: Restart Services
