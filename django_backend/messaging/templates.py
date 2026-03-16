@@ -3,7 +3,7 @@ Message template constants and retrieval functions.
 Centralizes all template management for SMS messages.
 """
 
-# Default message templates (Hardcoded)
+# Default message templates (single source of truth)
 DEFAULT_MESSAGE_TEMPLATES = [
     {
         'key': 'in_progress',
@@ -17,12 +17,24 @@ DEFAULT_MESSAGE_TEMPLATES = [
         'is_default': True
     },
     {
-        'key': 'ready_for_pickup',
-        'name': 'Ready for Pickup',
+        'key': 'ready_solved',
+        'name': 'Ready for Pickup (Solved)',
         'content': (
-            "Habari {customer}, computer yako {device} (Job No.: {taskId}) {status}. "
-            "Tatizo: {DESCRIPTION}. Gharama: TSH {amount}. "
-            "Tafadhali chukua ndani ya siku {pickup_deadline_days}.{contact_info} – {company_name}."
+            "Habari {customer}, computer yako {device} iliyosajiliwa kwenye mfumo wetu (Job No.: {taskId}). "
+            "Kompyuta yako imefanyiwa kazi, IMEPONA na ipo tayari kuchukuliwa, na gharama yake ni TSH {amount}. "
+            "Unatakiwa kuichukua ndani ya siku {pickup_deadline_days} kuanzia leo; baada ya hapo, utatozwa gharama za uhifadhi TSH {storage_fee}/siku. "
+            "Asante kwa kushirikiana,{contact_info} – {company_name}."
+        ),
+        'is_default': True
+    },
+    {
+        'key': 'ready_not_solved',
+        'name': 'Ready for Pickup (Not Solved)',
+        'content': (
+            "Habari {customer}, computer yako {device} imeyosajiliwa kwenye mfumo wetu (Job No.: {taskId}). "
+            "Kompyuta yako imefanyiwa kazi, HAIJAPONA na ipo tayari kuchukuliwa. "
+            "Unatakiwa kuichukua ndani ya siku {pickup_deadline_days} kuanzia leo; baada ya hapo, utatozwa gharama za uhifadhi TSH {storage_fee}/siku. "
+            "Asante kwa kushirikiana,{contact_info} – {company_name}."
         ),
         'is_default': True
     },
@@ -35,44 +47,52 @@ DEFAULT_MESSAGE_TEMPLATES = [
             "ili kuepuka usumbufu.{contact_info} Asante kwa kushirikiana na {company_name}."
         ),
         'is_default': True
-    }
+    },
+    {
+        'key': 'picked_up_thank_you',
+        'name': 'Picked Up (Thank You)',
+        'content': (
+            "Habari {customer}, tunakushukuru kwa kuchukua kompyuta yako {device} "
+            "(Job No.: {taskId}). Tunafurahi kufanya kazi na wewe. Karibu sana! – {company_name}"
+        ),
+        'is_default': True
+    },
+    {
+        'key': 'picked_up_debt',
+        'name': 'Picked Up (Debt)',
+        'content': (
+            "Habari {customer}, tunakumbusha kuwa unadaiwa deni la TSH {outstanding_balance} "
+            "kwa kazi ya {device} (Job No.: {taskId}). Tafadhali lipa mapema iwezekanavyo "
+            "ili kuepuka usumbufu. Asante kwa kushirikiana na {company_name}"
+        ),
+        'is_default': True
+    },
+    {
+        'key': 'pickup_reminder',
+        'name': 'Pickup Reminder',
+        'content': (
+            "Habari {customer}, tunakukumbusha kuwa computer yako {device} "
+            "(Job No.: {taskId}) kipo tayari kuchukuliwa. "
+            "Umebakiwa na saa {hours_remaining} kabla ya muda wa siku {pickup_deadline_days} kumalizika; "
+            "baada ya hapo, gharama ya uhifadhi TSH {storage_fee}/siku itatozwa."
+            "{contact_info} – {company_name}."
+        ),
+        'is_default': True
+    },
 ]
 
-# Ready for pickup templates (Solved/Not Solved variants)
-TEMPLATE_READY_SOLVED = (
-    "Habari {customer}, computer yako {device} iliyosajiliwa kwenye mfumo wetu (Job No.: {taskId}). "
-    "Kompyuta yako imefanyiwa kazi, IMEPONA na ipo tayari kuchukuliwa, na gharama yake ni TSH {amount}. "
-    "Unatakiwa kuichukua ndani ya siku {pickup_deadline_days} kuanzia leo; baada ya hapo, utatozwa gharama za uhifadhi TSH {storage_fee}/siku. "
-    "Asante kwa kushirikiana,{contact_info} – {company_name}."
-)
 
-TEMPLATE_READY_NOT_SOLVED = (
-    "Habari {customer}, computer yako {device} imeyosajiliwa kwenye mfumo wetu (Job No.: {taskId}). "
-    "Kompyuta yako imefanyiwa kazi, HAIJAPONA na ipo tayari kuchukuliwa. "
-    "Unatakiwa kuichukua ndani ya siku {pickup_deadline_days} kuanzia leo; baada ya hapo, utatozwa gharama za uhifadhi TSH {storage_fee}/siku. "
-    "Asante kwa kushirikiana,{contact_info} – {company_name}."
-)
+def _content(key: str) -> str:
+    """Extract template content by key."""
+    return next(t['content'] for t in DEFAULT_MESSAGE_TEMPLATES if t['key'] == key)
 
-# Picked Up SMS templates
-TEMPLATE_PICKED_UP_THANK_YOU = (
-    "Habari {customer}, tunakushukuru kwa kuchukua kompyuta yako {device} "
-    "(Job No.: {taskId}). Tunafurahi kufanya kazi na wewe. Karibu sana! – {company_name}"
-)
 
-TEMPLATE_PICKED_UP_DEBT = (
-    "Habari {customer}, tunakumbusha kuwa unadaiwa deni la TSH {outstanding_balance} "
-    "kwa kazi ya {device} (Job No.: {taskId}). Tafadhali lipa mapema iwezekanavyo "
-    "ili kuepuka usumbufu. Asante kwa kushirikiana na {company_name}"
-)
-
-# Pickup Reminder template (for tasks ready but not picked up)
-TEMPLATE_PICKUP_REMINDER = (
-    "Habari {customer}, tunakukumbusha kuwa computer yako {device} "
-    "(Job No.: {taskId}) kipo tayari kuchukuliwa. "
-    "Umebakiwa na saa {hours_remaining} kabla ya muda wa siku {pickup_deadline_days} kumalizika; "
-    "baada ya hapo, gharama ya uhifadhi TSH {storage_fee}/siku itatozwa."
-    "{contact_info} – {company_name}."
-)
+# Named aliases for external imports (derived from dict above — not duplicated)
+TEMPLATE_READY_SOLVED = _content('ready_solved')
+TEMPLATE_READY_NOT_SOLVED = _content('ready_not_solved')
+TEMPLATE_PICKED_UP_THANK_YOU = _content('picked_up_thank_you')
+TEMPLATE_PICKED_UP_DEBT = _content('picked_up_debt')
+TEMPLATE_PICKUP_REMINDER = _content('pickup_reminder')
 
 
 def get_message_templates():
@@ -80,11 +100,9 @@ def get_message_templates():
     Get all message templates (defaults + database).
     """
     from messaging.models import MessageTemplate
-    
-    # Start with defaults
+
     templates = [t.copy() for t in DEFAULT_MESSAGE_TEMPLATES]
-    
-    # Add database templates
+
     db_templates = MessageTemplate.objects.filter(is_active=True)
     for t in db_templates:
         templates.append({
@@ -93,7 +111,7 @@ def get_message_templates():
             'content': t.content,
             'is_default': False
         })
-        
+
     return templates
 
 
@@ -102,16 +120,16 @@ def get_template_by_key_or_id(key=None, template_id=None):
     Get a template content by either its string key (default) or DB ID.
     """
     from messaging.models import MessageTemplate
-    
+
     if key:
         for t in DEFAULT_MESSAGE_TEMPLATES:
             if t['key'] == key:
                 return t['content']
-    
+
     if template_id:
         try:
             return MessageTemplate.objects.get(id=template_id).content
         except MessageTemplate.DoesNotExist:
             pass
-            
+
     return None

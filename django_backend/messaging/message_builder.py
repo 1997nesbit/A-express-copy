@@ -7,14 +7,7 @@ from django.utils import timezone
 
 from messaging.models import MessageLog
 from messaging.sms_client import briq_client
-from messaging.templates import (
-    get_template_by_key_or_id,
-    TEMPLATE_READY_SOLVED,
-    TEMPLATE_READY_NOT_SOLVED,
-    TEMPLATE_PICKED_UP_THANK_YOU,
-    TEMPLATE_PICKED_UP_DEBT,
-    TEMPLATE_PICKUP_REMINDER,
-)
+from messaging.templates import get_template_by_key_or_id
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +133,7 @@ class MessageBuilder:
             device_notes_section = f" {self.task.device_notes.upper()}."
         
         message = (
-            f"Habari {self.get_customer_name()}, kifaa chako cha {self.get_device_name()} kimepokelewa "
+            f"Habari {self.get_customer_name()}, computer yako {self.get_device_name()} kimepokelewa "
             f"na kusajiliwa rasmi tarehe {date_str} (Job No.: {self.task.title})."
             f"{device_notes_section} "
             f"Pindi utakapopokea meseji ya kukamilika au kutokamilika kwa huduma, "
@@ -151,10 +144,8 @@ class MessageBuilder:
     
     def build_ready_for_pickup_message(self) -> str:
         """Build ready for pickup SMS message based on workshop status."""
-        if self.task.workshop_status == 'Solved':
-            template = TEMPLATE_READY_SOLVED
-        else:
-            template = TEMPLATE_READY_NOT_SOLVED
+        key = 'ready_solved' if self.task.workshop_status == 'Solved' else 'ready_not_solved'
+        template = get_template_by_key_or_id(key=key)
         return self.sanitize(self.substitute_variables(template))
     
     def build_debt_reminder_message(self) -> str | None:
@@ -166,15 +157,14 @@ class MessageBuilder:
     
     def build_picked_up_message(self) -> str:
         """Build picked up SMS message based on is_debt flag."""
-        if self.task.is_debt:
-            template = TEMPLATE_PICKED_UP_DEBT
-        else:
-            template = TEMPLATE_PICKED_UP_THANK_YOU
+        key = 'picked_up_debt' if self.task.is_debt else 'picked_up_thank_you'
+        template = get_template_by_key_or_id(key=key)
         return self.sanitize(self.substitute_variables(template))
-    
+
     def build_pickup_reminder_message(self) -> str:
         """Build pickup reminder SMS for tasks that are ready but not picked up."""
-        return self.sanitize(self.substitute_variables(TEMPLATE_PICKUP_REMINDER))
+        template = get_template_by_key_or_id(key='pickup_reminder')
+        return self.sanitize(self.substitute_variables(template))
     
     def build_template_message(self, template_key: str) -> str | None:
         """

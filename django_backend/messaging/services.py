@@ -5,7 +5,12 @@ Uses modular components for client, templates, and message building.
 import logging
 
 from messaging.sms_client import briq_client
-from messaging.templates import get_message_templates, get_template_by_key_or_id
+from messaging.templates import (
+    get_message_templates,
+    get_template_by_key_or_id,
+    TEMPLATE_READY_SOLVED,
+    TEMPLATE_READY_NOT_SOLVED,
+)
 from messaging.message_builder import MessageBuilder, send_sms_with_logging
 
 logger = logging.getLogger(__name__)
@@ -15,11 +20,13 @@ __all__ = [
     'briq_client',
     'get_message_templates',
     'get_template_by_key_or_id',
+    'TEMPLATE_READY_SOLVED',
+    'TEMPLATE_READY_NOT_SOLVED',
     'send_task_registration_sms',
     'send_debt_reminder_sms',
     'send_ready_for_pickup_sms',
     'send_picked_up_sms',
-    'send_pickup_reminder_sms',
+    'send_pickup_reminder_sms', 
     'build_template_message',
 ]
 
