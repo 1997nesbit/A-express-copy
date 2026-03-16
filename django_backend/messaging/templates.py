@@ -9,7 +9,7 @@ DEFAULT_MESSAGE_TEMPLATES = [
         'key': 'in_progress',
         'name': 'Repair in Progress',
         'content': (
-            "Habari {customer}, kifaa chako cha {device} kilisajiliwa kwenye mfumo wetu "
+            "Habari {customer}, computer yako {device} kilisajiliwa kwenye mfumo wetu "
             "(Job No.: {taskId}). Baada ya uchunguzi, tatizo ni {DESCRIPTION}, "
             "na mafundi wanaendelea na matengenezo. Tunaomba uwe na subira, "
             "na tutakutaarifu pindi kazi itakapokamilika.{contact_info} – {company_name}."
@@ -20,7 +20,7 @@ DEFAULT_MESSAGE_TEMPLATES = [
         'key': 'ready_for_pickup',
         'name': 'Ready for Pickup',
         'content': (
-            "Habari {customer}, kifaa chako {device} (Job No.: {taskId}) {status}. "
+            "Habari {customer}, computer yako {device} (Job No.: {taskId}) {status}. "
             "Tatizo: {DESCRIPTION}. Gharama: TSH {amount}. "
             "Tafadhali chukua ndani ya siku {pickup_deadline_days}.{contact_info} – {company_name}."
         ),
@@ -40,14 +40,14 @@ DEFAULT_MESSAGE_TEMPLATES = [
 
 # Ready for pickup templates (Solved/Not Solved variants)
 TEMPLATE_READY_SOLVED = (
-    "Habari {customer}, kifaa chako {device} iliyosajiliwa kwenye mfumo wetu (Job No.: {taskId}). "
+    "Habari {customer}, computer yako {device} iliyosajiliwa kwenye mfumo wetu (Job No.: {taskId}). "
     "Kompyuta yako imefanyiwa kazi, IMEPONA na ipo tayari kuchukuliwa, na gharama yake ni TSH {amount}. "
     "Unatakiwa kuichukua ndani ya siku {pickup_deadline_days} kuanzia leo; baada ya hapo, utatozwa gharama za uhifadhi TSH {storage_fee}/siku. "
     "Asante kwa kushirikiana,{contact_info} – {company_name}."
 )
 
 TEMPLATE_READY_NOT_SOLVED = (
-    "Habari {customer}, kifaa chako {device} imeyosajiliwa kwenye mfumo wetu (Job No.: {taskId}). "
+    "Habari {customer}, computer yako {device} imeyosajiliwa kwenye mfumo wetu (Job No.: {taskId}). "
     "Kompyuta yako imefanyiwa kazi, HAIJAPONA na ipo tayari kuchukuliwa. "
     "Unatakiwa kuichukua ndani ya siku {pickup_deadline_days} kuanzia leo; baada ya hapo, utatozwa gharama za uhifadhi TSH {storage_fee}/siku. "
     "Asante kwa kushirikiana,{contact_info} – {company_name}."
@@ -67,7 +67,7 @@ TEMPLATE_PICKED_UP_DEBT = (
 
 # Pickup Reminder template (for tasks ready but not picked up)
 TEMPLATE_PICKUP_REMINDER = (
-    "Habari {customer}, tunakukumbusha kuwa kifaa chako {device} "
+    "Habari {customer}, tunakukumbusha kuwa computer yako {device} "
     "(Job No.: {taskId}) kipo tayari kuchukuliwa. "
     "Umebakiwa na saa {hours_remaining} kabla ya muda wa siku {pickup_deadline_days} kumalizika; "
     "baada ya hapo, gharama ya uhifadhi TSH {storage_fee}/siku itatozwa."
