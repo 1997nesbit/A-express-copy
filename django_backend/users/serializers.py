@@ -177,7 +177,8 @@ class LoginSerializer(serializers.Serializer):
         if username and password:
             # Get request from context (required for django-axes)
             request = self.context.get('request')
-            user = authenticate(request=request, username=username, password=password)
+            user = authenticate(request=request, username=username, password=password);
+            
             if user:
                 if not user.is_active:
                     raise serializers.ValidationError('User account is disabled.')
