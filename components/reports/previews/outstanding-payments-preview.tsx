@@ -2,9 +2,10 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/layout/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/layout/table"
-import { Badge } from "@/components/ui/core/badge"
 import { useState, useEffect } from "react"
 import type { OutstandingPaymentsReport } from "../types"
+import { Spinner } from "@/components/ui/core/loaders"
+import { StatusBadge } from "@/components/tasks/task_utils/task-badges"
 
 interface OutstandingPaymentsPreviewProps {
     report: OutstandingPaymentsReport
@@ -46,11 +47,8 @@ export const OutstandingPaymentsPreview = ({
         onPageChange(newPage, newSize)
     }
 
-    const filteredTasks = report.outstanding_tasks.filter(task =>
-        task.task_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        task.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        task.customer_phone.includes(searchTerm)
-    )
+    // No client-side filtering - data comes filtered from server
+    const filteredTasks = report.outstanding_tasks
 
     const pagination = report.pagination
 
@@ -125,7 +123,7 @@ export const OutstandingPaymentsPreview = ({
                     <div className="relative">
                         {isLoading && (
                             <div className="absolute inset-0 bg-white bg-opacity-50 flex items-center justify-center z-10">
-                                <div className="text-gray-600">Loading...</div>
+                                <Spinner size="lg" className="text-muted-foreground" />
                             </div>
                         )}
                         <Table>
@@ -134,11 +132,9 @@ export const OutstandingPaymentsPreview = ({
                                     <TableHead>Task ID</TableHead>
                                     <TableHead>Customer</TableHead>
                                     <TableHead>Phone</TableHead>
-                                    <TableHead>Total Cost</TableHead>
-                                    <TableHead>Paid</TableHead>
                                     <TableHead>Outstanding</TableHead>
-                                    <TableHead>Days Overdue</TableHead>
                                     <TableHead>Status</TableHead>
+                                    <TableHead>Device Status</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -148,20 +144,16 @@ export const OutstandingPaymentsPreview = ({
                                             <TableCell className="font-medium">{task.task_id}</TableCell>
                                             <TableCell>{task.customer_name}</TableCell>
                                             <TableCell>{task.customer_phone}</TableCell>
-                                            <TableCell>TSh {task.total_cost.toLocaleString()}</TableCell>
-                                            <TableCell>TSh {task.paid_amount.toLocaleString()}</TableCell>
                                             <TableCell className="font-semibold text-red-600">
                                                 TSh {task.outstanding_balance.toLocaleString()}
                                             </TableCell>
                                             <TableCell>
-                                                <Badge variant={task.days_overdue > 7 ? "destructive" : "secondary"}>
-                                                    {task.days_overdue} days
-                                                </Badge>
+                                                <StatusBadge status={task.status} />
                                             </TableCell>
                                             <TableCell>
-                                                <Badge variant={task.status === "Completed" ? "default" : "secondary"}>
-                                                    {task.status}
-                                                </Badge>
+                                                {task.workshop_status && (
+                                                    <StatusBadge status={task.workshop_status} />
+                                                )}
                                             </TableCell>
                                         </TableRow>
                                     ))

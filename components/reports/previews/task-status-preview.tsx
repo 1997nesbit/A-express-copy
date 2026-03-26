@@ -2,32 +2,39 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/layout/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/layout/table"
-import { ResponsiveContainer, PieChart, Pie, Cell, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts"
+import * as recharts from "recharts"
 
 const ChartContainer = ({ children, className }: any) => {
     return <div className={className}>{children}</div>
 }
 
-const ChartTooltip = (props: any) => {
-    return <Tooltip {...props} />
+const getStatusColor = (status: string): string => {
+    if (status === 'Completed') return '#22c55e';
+    if (status === 'In Progress') return '#f97316';
+    if (status === 'Pending') return '#eab308';
+    if (status === 'Awaiting Parts') return '#f59e0b';
+    return '#6b7280';
 }
 
-interface TaskStatusReport {
-    statuses: {
-        name: string
-        value: number
-        color: string
-    }[]
-    summary: {
-        total_tasks: number
-        completed_tasks: number
-        in_progress_tasks: number
-    },
-    popular_brand: string;
-    popular_model: string;
-    top_brands: { brand__name: string; count: number }[];
-    top_models: { laptop_model: string; count: number }[];
+const ChartTooltip = (props: any) => {
+    return <recharts.Tooltip {...props} />
 }
+
+const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload?.length) {
+        const data = payload[0].payload
+        return (
+            <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-sm">
+                <p className="font-medium">{data.status}</p>
+                <p className="text-sm text-gray-600">
+                    {data.count} tasks ({data.percentage}%)
+                </p>
+            </div>
+        )
+    }
+    return null
+}
+
 
 export const TaskStatusPreview = ({ report }: { report: any }) => {
     // Use the actual data structure from your API response
@@ -40,12 +47,14 @@ export const TaskStatusPreview = ({ report }: { report: any }) => {
     const topModels = report.top_models || []
 
     // Calculate summary from the actual data
-    const completedTasks = statusDistribution.find((s: any) => s.status === 'Completed')?.count || 0
+    const readyForPickupTasks = statusDistribution.find((s: any) => s.status === 'Ready for Pickup')?.count || 0
     const inProgressTasks = statusDistribution.find((s: any) => s.status === 'In Progress')?.count || 0
+
+    const overduePickupCount = report.overdue_pickup_count || 0
 
     return (
         <div className="space-y-6">
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-4">
                 <Card>
                     <CardContent className="p-4">
                         <p className="text-sm text-gray-600">Total Tasks</p>
@@ -54,14 +63,20 @@ export const TaskStatusPreview = ({ report }: { report: any }) => {
                 </Card>
                 <Card>
                     <CardContent className="p-4">
-                        <p className="text-sm text-gray-600">Completed</p>
-                        <p className="text-2xl font-bold text-green-600">{completedTasks}</p>
+                        <p className="text-sm text-gray-600">Ready for Pickup</p>
+                        <p className="text-2xl font-bold text-green-600">{readyForPickupTasks}</p>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="p-4">
                         <p className="text-sm text-gray-600">In Progress</p>
                         <p className="text-2xl font-bold text-orange-600">{inProgressTasks}</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardContent className="p-4">
+                        <p className="text-sm text-gray-600">Overdue Pickup (&gt;7 Days)</p>
+                        <p className="text-2xl font-bold text-red-600">{overduePickupCount}</p>
                     </CardContent>
                 </Card>
             </div>
@@ -88,16 +103,16 @@ export const TaskStatusPreview = ({ report }: { report: any }) => {
                     </CardHeader>
                     <CardContent>
                         <ChartContainer className="h-[300px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={topBrands}>
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="brand__name" />
-                                    <YAxis />
-                                    <Tooltip />
-                                    <Legend />
-                                    <Bar dataKey="count" fill="#8884d8" />
-                                </BarChart>
-                            </ResponsiveContainer>
+                            <recharts.ResponsiveContainer width="100%" height="100%">
+                                <recharts.BarChart data={topBrands}>
+                                    <recharts.CartesianGrid strokeDasharray="3 3" />
+                                    <recharts.XAxis dataKey="brand__name" />
+                                    <recharts.YAxis />
+                                    <recharts.Tooltip />
+                                    <recharts.Legend />
+                                    <recharts.Bar dataKey="count" fill="#8884d8" />
+                                </recharts.BarChart>
+                            </recharts.ResponsiveContainer>
                         </ChartContainer>
                     </CardContent>
                 </Card>
@@ -107,16 +122,16 @@ export const TaskStatusPreview = ({ report }: { report: any }) => {
                     </CardHeader>
                     <CardContent>
                         <ChartContainer className="h-[300px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={topModels}>
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="laptop_model" />
-                                    <YAxis />
-                                    <Tooltip />
-                                    <Legend />
-                                    <Bar dataKey="count" fill="#82ca9d" />
-                                </BarChart>
-                            </ResponsiveContainer>
+                            <recharts.ResponsiveContainer width="100%" height="100%">
+                                <recharts.BarChart data={topModels}>
+                                    <recharts.CartesianGrid strokeDasharray="3 3" />
+                                    <recharts.XAxis dataKey="laptop_model" />
+                                    <recharts.YAxis />
+                                    <recharts.Tooltip />
+                                    <recharts.Legend />
+                                    <recharts.Bar dataKey="count" fill="#82ca9d" />
+                                </recharts.BarChart>
+                            </recharts.ResponsiveContainer>
                         </ChartContainer>
                     </CardContent>
                 </Card>
@@ -129,9 +144,9 @@ export const TaskStatusPreview = ({ report }: { report: any }) => {
                     </CardHeader>
                     <CardContent>
                         <ChartContainer className="h-[300px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
+                            <recharts.ResponsiveContainer width="100%" height="100%">
+                                <recharts.PieChart>
+                                    <recharts.Pie
                                         data={statusDistribution}
                                         cx="50%"
                                         cy="50%"
@@ -140,38 +155,17 @@ export const TaskStatusPreview = ({ report }: { report: any }) => {
                                         paddingAngle={5}
                                         dataKey="count"
                                     >
-                                        {statusDistribution.map((entry: any, index: number) => (
-                                            <Cell
-                                                key={`cell-${index}`}
-                                                fill={
-                                                    entry.status === 'Completed' ? '#22c55e' :
-                                                        entry.status === 'In Progress' ? '#f97316' :
-                                                            entry.status === 'Pending' ? '#eab308' :
-                                                                entry.status === 'Awaiting Parts' ? '#f59e0b' :
-                                                                    '#6b7280' // default gray
-                                                }
+                                        {statusDistribution.map((entry: any) => (
+                                            <recharts.Cell
+                                                key={`cell-${entry.status}`}
+                                                fill={getStatusColor(entry.status)}
                                             />
                                         ))}
-                                    </Pie>
-                                    <ChartTooltip
-                                        content={({ active, payload }: any) => {
-                                            if (active && payload && payload.length) {
-                                                const data = payload[0].payload
-                                                return (
-                                                    <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-sm">
-                                                        <p className="font-medium">{data.status}</p>
-                                                        <p className="text-sm text-gray-600">
-                                                            {data.count} tasks ({data.percentage}%)
-                                                        </p>
-                                                    </div>
-                                                )
-                                            }
-                                            return null
-                                        }}
-                                    />
-                                    <Legend />
-                                </PieChart>
-                            </ResponsiveContainer>
+                                    </recharts.Pie>
+                                    <ChartTooltip content={<CustomTooltip />} />
+                                    <recharts.Legend />
+                                </recharts.PieChart>
+                            </recharts.ResponsiveContainer>
                         </ChartContainer>
                     </CardContent>
                 </Card>
@@ -187,14 +181,7 @@ export const TaskStatusPreview = ({ report }: { report: any }) => {
                                     <div className="flex items-center gap-3">
                                         <div
                                             className="w-3 h-3 rounded-full"
-                                            style={{
-                                                backgroundColor:
-                                                    status.status === 'Completed' ? '#22c55e' :
-                                                        status.status === 'In Progress' ? '#f97316' :
-                                                            status.status === 'Pending' ? '#eab308' :
-                                                                status.status === 'Awaiting Parts' ? '#f59e0b' :
-                                                                    '#6b7280'
-                                            }}
+                                            style={{ backgroundColor: getStatusColor(status.status) }}
                                         />
                                         <span className="font-medium">{status.status}</span>
                                     </div>
@@ -237,6 +224,37 @@ export const TaskStatusPreview = ({ report }: { report: any }) => {
                     </Table>
                 </CardContent>
             </Card>
+
+            {/* Overdue Tasks Section */}
+            {report.overdue_tasks && report.overdue_tasks.length > 0 && (
+                <Card className="border-red-200">
+                    <CardHeader className="bg-red-50">
+                        <CardTitle className="text-red-700">Top 10 Overdue for Pickup</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Task Title</TableHead>
+                                    <TableHead>Customer</TableHead>
+                                    <TableHead>Phone</TableHead>
+                                    <TableHead>Days Overdue</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {report.overdue_tasks.map((task: any) => (
+                                    <TableRow key={task.id}>
+                                        <TableCell className="font-medium">{task.title}</TableCell>
+                                        <TableCell>{task.customer_name}</TableCell>
+                                        <TableCell>{task.customer_phone}</TableCell>
+                                        <TableCell className="font-bold text-red-600">{task.days_overdue} days</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+            )}
 
             {/* Generated At Info */}
             <Card className="border-gray-200 bg-gray-50">

@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/core/button"
 import { Input } from "@/components/ui/core/input"
 import { Separator } from "@/components/ui/core/separator"
-import { Sheet, SheetContent } from "@/components/ui/layout/sheet"
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/layout/sheet"
 import { Skeleton } from "@/components/ui/core/skeleton"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/feedback/tooltip"
 
@@ -86,8 +86,8 @@ const SidebarProvider = React.forwardRef<
       }
     }
 
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
+    globalThis.addEventListener("keydown", handleKeyDown)
+    return () => globalThis.removeEventListener("keydown", handleKeyDown)
   }, [toggleSidebar])
 
   // We add a state so that we can do data-state="expanded" or "collapsed".
@@ -166,6 +166,7 @@ const Sidebar = React.forwardRef<
           }
           side={side}
         >
+          <SheetTitle className="sr-only">Sidebar</SheetTitle>
           <div className="flex h-full w-full flex-col">{children}</div>
         </SheetContent>
       </Sheet>
@@ -174,9 +175,8 @@ const Sidebar = React.forwardRef<
 
   // Calculate the sidebar width style dynamically to prevent layout overlap issues
   // This ensures the placeholder and the fixed sidebar always match exactly
-  const lockedWidth = state === "expanded" 
-    ? "var(--sidebar-width)" 
-    : (collapsible === "icon" ? "var(--sidebar-width-icon)" : "0px");
+  const collapsedWidth = collapsible === "icon" ? "var(--sidebar-width-icon)" : "0px"
+  const lockedWidth = state === "expanded" ? "var(--sidebar-width)" : collapsedWidth
 
   return (
     <div
@@ -226,7 +226,7 @@ const Sidebar = React.forwardRef<
 })
 Sidebar.displayName = "Sidebar"
 
-const SidebarTrigger = React.forwardRef<React.ElementRef<typeof Button>, React.ComponentProps<typeof Button>>(
+const SidebarTrigger = React.forwardRef<React.ComponentRef<typeof Button>, React.ComponentProps<typeof Button>>(
   ({ className, onClick, ...props }, ref) => {
     const { toggleSidebar } = useSidebar()
 
@@ -294,7 +294,7 @@ const SidebarInset = React.forwardRef<HTMLDivElement, React.ComponentProps<"main
 })
 SidebarInset.displayName = "SidebarInset"
 
-const SidebarInput = React.forwardRef<React.ElementRef<typeof Input>, React.ComponentProps<typeof Input>>(
+const SidebarInput = React.forwardRef<React.ComponentRef<typeof Input>, React.ComponentProps<typeof Input>>(
   ({ className, ...props }, ref) => {
     return (
       <Input
@@ -321,7 +321,7 @@ const SidebarFooter = React.forwardRef<HTMLDivElement, React.ComponentProps<"div
 })
 SidebarFooter.displayName = "SidebarFooter"
 
-const SidebarSeparator = React.forwardRef<React.ElementRef<typeof Separator>, React.ComponentProps<typeof Separator>>(
+const SidebarSeparator = React.forwardRef<React.ComponentRef<typeof Separator>, React.ComponentProps<typeof Separator>>(
   ({ className, ...props }, ref) => {
     return (
       <Separator
@@ -506,7 +506,7 @@ const SidebarMenuAction = React.forwardRef<
         "peer-data-[size=lg]/menu-button:top-2.5",
         "group-data-[collapsible=icon]:hidden",
         showOnHover &&
-          "group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 data-[state=open]:opacity-100 peer-data-[active=true]/menu-button:text-sidebar-accent-foreground md:opacity-0",
+        "group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 data-[state=open]:opacity-100 peer-data-[active=true]/menu-button:text-sidebar-accent-foreground md:opacity-0",
         className,
       )}
       {...props}

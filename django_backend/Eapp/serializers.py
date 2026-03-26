@@ -20,6 +20,9 @@ class TaskListSerializer(serializers.ModelSerializer):
     assigned_to_details = UserListSerializer(source='assigned_to', read_only=True)
     outstanding_balance = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     laptop_model_details = ModelSerializer(source='laptop_model', read_only=True)
+    brand_details = BrandSerializer(source='brand', read_only=True)
+    total_cost = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    current_location_details = LocationSerializer(source='current_location', read_only=True)
 
     class Meta:
         model = Task
@@ -31,6 +34,8 @@ class TaskListSerializer(serializers.ModelSerializer):
             'payment_status',
             'workshop_status',
             'current_location',
+            'current_location_details',
+            'brand_details',
             'laptop_model',
             'laptop_model_details',
             'description',
@@ -38,6 +43,10 @@ class TaskListSerializer(serializers.ModelSerializer):
             'customer_details',
             'assigned_to_details',
             'outstanding_balance',
+            'total_cost',
+            'is_debt',
+            'is_terminated',
+            'to_be_checked',
         )
 
 class TaskDetailSerializer(serializers.ModelSerializer):
@@ -54,20 +63,25 @@ class TaskDetailSerializer(serializers.ModelSerializer):
     activities = TaskActivitySerializer(many=True, read_only=True)
     payments = PaymentSerializer(many=True, read_only=True)
     outstanding_balance = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
-    total_cost = serializers.DecimalField(source='calculated_total_cost', max_digits=10, decimal_places=2, read_only=True)
-    paid_amount = serializers.DecimalField(source='calculated_paid_amount', max_digits=10, decimal_places=2, read_only=True)
+    total_cost = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    paid_amount = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     workshop_location_details = LocationSerializer(
         source="workshop_location", read_only=True
     )
-    workshop_technician_details = UserSerializer(
-        source="workshop_technician", read_only=True
+    current_location_details = LocationSerializer(
+        source="current_location", read_only=True
     )
+    original_location_snapshot_details = LocationSerializer(
+        source="original_location_snapshot", read_only=True
+    )
+    # Backward compatibility - expose location names as strings
+    current_location_name = serializers.CharField(read_only=True)
+    original_location_name = serializers.CharField(read_only=True)
     original_technician_snapshot_details = UserSerializer(
         source="original_technician_snapshot", read_only=True
     )
     original_technician = serializers.PrimaryKeyRelatedField(read_only=True)
     original_technician_details = UserSerializer(source='original_technician', read_only=True)
-    original_location_snapshot = serializers.CharField(read_only=True)
     latest_pickup_at = serializers.DateTimeField(read_only=True)
     latest_pickup_by_details = UserSerializer(source='latest_pickup_by', read_only=True)
     cost_breakdowns = CostBreakdownSerializer(many=True, read_only=True)
@@ -76,29 +90,35 @@ class TaskDetailSerializer(serializers.ModelSerializer):
     )
     negotiated_by_details = UserSerializer(source="negotiated_by", read_only=True)
     laptop_model_details = ModelSerializer(source='laptop_model', read_only=True)
+    approved_by = serializers.PrimaryKeyRelatedField(read_only=True)
+    sent_out_by = serializers.PrimaryKeyRelatedField(read_only=True)
+    qc_rejected_by = serializers.PrimaryKeyRelatedField(read_only=True)
 
     class Meta:
         model = Task
         fields = (
             'id', 'title', 'description', 'status', 'urgency',
             'assigned_to', 'assigned_to_details', 'created_by_details',
-            'created_at', 'updated_at', 'due_date',
+            'created_at', 'updated_at',
             'customer', 'customer_details',
             'brand', 'brand_details', 'laptop_model', 'laptop_model_details',
             'device_type', 'device_notes',
             'estimated_cost', 'total_cost', 'paid_amount', 'payment_status',
-            'current_location', 'date_in', 'approved_at', 'approved_by',
-            'paid_date', 'next_payment_date', 'date_out', 'negotiated_by', 'negotiated_by_details',
-            'activities', 'payments', 'outstanding_balance', 'is_referred', 'is_debt', 'referred_by', 'referred_by_details',
-            'workshop_status', 'workshop_location', 'workshop_technician', 'original_technician_snapshot', 'original_location_snapshot', 'original_technician', 'original_technician_details',
-            'workshop_location_details', 'workshop_technician_details', 'original_technician_snapshot_details', 'approved_by_details',
+            'current_location', 'current_location_details', 'current_location_name',
+            'date_in', 'approved_at', 'approved_by',
+            'date_out', 'negotiated_by', 'negotiated_by_details',
+            'activities', 'payments', 'outstanding_balance', 'is_referred', 'is_debt', 'is_terminated', 'referred_by', 'referred_by_details',
+            'workshop_status', 'workshop_location', 'to_be_checked', 'original_technician_snapshot', 'original_location_snapshot', 
+            'original_location_snapshot_details', 'original_location_name', 'original_technician', 'original_technician_details',
+            'workshop_location_details', 'original_technician_snapshot_details', 'approved_by_details',
             'latest_pickup_at', 'latest_pickup_by', 'latest_pickup_by_details',
             'sent_out_by', 'sent_out_by_details',
-            'qc_notes', 'qc_rejected_at', 'qc_rejected_by',
+            'qc_rejected_at', 'qc_rejected_by',
             'cost_breakdowns'
         )
         read_only_fields = ('created_at', 'updated_at', 'assigned_to_details', 'created_by_details', 'activities', 'payments',
-                    'workshop_location_details', 'workshop_technician_details', 'original_technician_snapshot_details', 'approved_by_details', 'sent_out_by_details')
+                    'workshop_location_details', 'current_location_details', 'original_location_snapshot_details',
+                    'original_technician_snapshot_details', 'approved_by_details', 'sent_out_by_details')
         extra_kwargs = {
             "estimated_cost": {"validators": [MinValueValidator(Decimal("0.00"))]},
         }
@@ -123,24 +143,6 @@ class TaskDetailSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         # Business logic moved to TaskViewSet.update
         return super().update(instance, validated_data)
-
-
-# class SavedReportSerializer(serializers.ModelSerializer):
-#     created_by_details = UserSerializer(source="created_by", read_only=True)
-
-#     class Meta:
-#         model = SavedReport
-#         fields = [
-#             "id",
-#             "name",
-#             "description",
-#             "config",
-#             "created_by",
-#             "created_by_details",
-#             "created_at",
-#             "is_public",
-#         ]
-#         read_only_fields = ["created_by", "created_at"]
 
 
 class ReportConfigSerializer(serializers.Serializer):

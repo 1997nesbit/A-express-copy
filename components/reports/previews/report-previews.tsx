@@ -5,8 +5,7 @@ import { TechnicianPerformancePreview } from "./technician-performance-preview"
 import { TaskStatusPreview } from "./task-status-preview"
 import { TechnicianWorkloadPreview } from "./technician-workload-preview"
 import { PaymentMethodsPreview } from "./payment-methods-preview"
-import { TurnaroundTimePreview } from "./turnaround-time-preview"
-import { InventoryLocationPreview } from "./inventory-location-preview"
+import { TaskExecutionPreview } from "./task-execution-preview"
 import { GenericReportPreview } from "./generic-report-preview"
 import { FrontDeskPerformancePreview } from "./front-desk-performance-preview"
 import type {
@@ -15,7 +14,6 @@ import type {
     TaskStatusReport,
     TechnicianWorkloadReport,
     PaymentMethodsReport,
-    InventoryLocationReport,
     FrontDeskPerformanceReport,
 } from "../types"
 
@@ -45,9 +43,9 @@ export const ReportPreview = ({
                     isLoading={isLoading}
                 />
             )
-        case "turnaround_time":
+        case "task_execution":
             return (
-                <TurnaroundTimePreview
+                <TaskExecutionPreview
                     report={data}
                     searchTerm={searchTerm}
                     onPageChange={onPageChange || (() => { })}
@@ -62,8 +60,6 @@ export const ReportPreview = ({
             return <TechnicianWorkloadPreview report={data as TechnicianWorkloadReport} />
         case "payment_methods":
             return <PaymentMethodsPreview report={data as PaymentMethodsReport} />
-        case "laptops_in_shop_by_location":
-            return <InventoryLocationPreview report={data as InventoryLocationReport} />
         case "front_desk_performance":
             return <FrontDeskPerformancePreview data={data as FrontDeskPerformanceReport} />
         default:

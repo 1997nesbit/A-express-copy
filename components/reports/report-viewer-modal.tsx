@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import { Button } from "@/components/ui/core/button"
 import { ReportViewer } from "./report-viewer"
 import { BarChart3, Download } from "lucide-react"
@@ -9,6 +10,7 @@ interface ReportViewerModalProps {
     onGeneratePDF: (reportId: string) => void
     onClose: () => void
     onPageChange?: (page: number, pageSize: number) => void
+    onSearch?: (term: string) => void
     reports: ReportCard[]
 }
 
@@ -18,23 +20,40 @@ export function ReportViewerModal({
     onGeneratePDF,
     onClose,
     onPageChange,
+    onSearch,
     reports
-}: ReportViewerModalProps) {
-    const handleBackdropClick = (event: React.MouseEvent<HTMLDivElement>) => {
-        if (event.target === event.currentTarget) {
-            onClose()
-        }
-    }
-
+}: Readonly<ReportViewerModalProps>) {
     const report = reports.find(r => r.id === selectedReport.id)
     const IconComponent = report?.icon || BarChart3
 
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                onClose()
+            }
+        }
+        document.addEventListener('keydown', handleKeyDown)
+        return () => document.removeEventListener('keydown', handleKeyDown)
+    }, [onClose])
+
     return (
-        <div
-            className="fixed inset-0 bg-gray-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-300"
-            onClick={handleBackdropClick}
-        >
-            <div className="bg-white rounded-lg w-full max-w-7xl h-[90vh] overflow-hidden flex flex-col animate-in slide-in-from-bottom-10 duration-300">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
+            <div 
+                className="fixed inset-0 bg-gray-900/30 backdrop-blur-sm"
+                onClick={onClose}
+                onKeyDown={(e) => {
+                    if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') {
+                        onClose();
+                    }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-label="Close report viewer background"
+            />
+            <dialog
+                open
+                className="bg-white rounded-lg w-full max-w-7xl h-[90vh] overflow-hidden flex flex-col animate-in slide-in-from-bottom-10 duration-300 relative z-10 m-0 p-0 border-0 shadow-xl"
+            >
                 {/* Modal Header */}
                 <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-white sticky top-0 z-10">
                     <div className="flex items-center gap-3">
@@ -43,7 +62,7 @@ export function ReportViewerModal({
                         </div>
                         <div>
                             <h3 className="text-xl font-semibold text-gray-900">
-                                {selectedReport.data.report?.title || report?.title || selectedReport.id.replace(/-/g, ' ')}
+                                {selectedReport.data.report?.title || report?.title || selectedReport.id.replaceAll('-', ' ')}
                             </h3>
                             <p className="text-gray-600 text-sm">
                                 {report?.description || 'Live report data from your backend'}
@@ -88,6 +107,7 @@ export function ReportViewerModal({
                         onGeneratePDF={() => onGeneratePDF(selectedReport.id)}
                         isGeneratingPDF={isGeneratingPDF === selectedReport.id}
                         onPageChange={onPageChange}
+                        onSearch={onSearch} // Pass onSearch
                         currentPage={selectedReport.currentPage || 1}
                         pageSize={selectedReport.pageSize || 10}
                     />
@@ -97,7 +117,7 @@ export function ReportViewerModal({
                 <div className="border-t border-gray-200 p-4 bg-gray-50 sticky bottom-0">
                     <div className="flex items-center justify-between">
                         <p className="text-sm text-gray-500">
-                           A+ Express 2025
+                            A+ Express 2025
                         </p>
                         <div className="flex items-center gap-3">
                             <Button
@@ -110,7 +130,7 @@ export function ReportViewerModal({
                         </div>
                     </div>
                 </div>
-            </div>
+            </dialog>
         </div>
     )
 }

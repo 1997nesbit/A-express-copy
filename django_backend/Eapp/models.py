@@ -4,9 +4,21 @@ from django.utils.translation import gettext_lazy as _
 from decimal import Decimal
 from users.models import User
 
+_LOCATION_REF = 'common.Location'
+
 def get_current_date():
     return timezone.now().date()
-    
+
+
+class TaskQuerySet(models.QuerySet):
+    def with_outstanding_balance(self):
+        return self.annotate(
+            outstanding_balance=models.ExpressionWrapper(
+                models.F('total_cost') - models.F('paid_amount'),
+                output_field=models.DecimalField(max_digits=10, decimal_places=2)
+            )
+        )
+
 
 class Task(models.Model):
     class Status(models.TextChoices):
@@ -16,7 +28,6 @@ class Task(models.Model):
         COMPLETED = 'Completed', _('Completed')
         READY_FOR_PICKUP = 'Ready for Pickup', _('Ready for Pickup')
         PICKED_UP = 'Picked Up', _('Picked Up')
-        TERMINATED = 'Terminated', _('Terminated')
 
     class Urgency(models.TextChoices):
         YUPO = 'Yupo', _('Yupo')
@@ -56,7 +67,6 @@ class Task(models.Model):
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_tasks')
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
-    due_date = models.DateField(null=True, blank=True)
 
     # New fields
     customer = models.ForeignKey('customers.Customer', on_delete=models.CASCADE, related_name='tasks')
@@ -73,13 +83,17 @@ class Task(models.Model):
         default=PaymentStatus.UNPAID,
         db_index=True
     )
-    current_location = models.CharField(max_length=100)
+    current_location = models.ForeignKey(
+        _LOCATION_REF,
+        on_delete=models.PROTECT,
+        related_name='current_tasks',
+        help_text='Current location of the task'
+    )
     urgency = models.CharField(max_length=20, choices=Urgency.choices, default=Urgency.YUPO)
     date_in = models.DateField(default=get_current_date)
-    paid_date = models.DateField(null=True, blank=True)
-    next_payment_date = models.DateField(null=True, blank=True)
     is_debt = models.BooleanField(default=False)
     is_referred = models.BooleanField(default=False)
+    is_terminated = models.BooleanField(default=False)
     referred_by = models.ForeignKey(
         'customers.Referrer', on_delete=models.SET_NULL, null=True, blank=True, related_name='referred_tasks'
     )
@@ -91,22 +105,82 @@ class Task(models.Model):
         null=True,
         blank=True
     )
-    workshop_location = models.ForeignKey(
-        'common.Location', on_delete=models.SET_NULL, null=True, blank=True, related_name='workshop_tasks'
+    to_be_checked = models.BooleanField(
+        default=False,
+        help_text='Indicates task outcome requires verification by original technician'
     )
-    workshop_technician = models.ForeignKey(
-        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='workshop_assigned_tasks'
+    workshop_location = models.ForeignKey(
+        _LOCATION_REF, on_delete=models.SET_NULL, null=True, blank=True, related_name='workshop_tasks'
     )
     # Snapshot fields for performance and data-proofing
     original_technician_snapshot = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True, related_name='original_technician_snapshot_tasks'
     )
-    original_location_snapshot = models.CharField(max_length=200, null=True, blank=True)
+    original_location_snapshot = models.ForeignKey(
+        _LOCATION_REF,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='original_tasks',
+        help_text='Snapshot of original location before workshop'
+    )
     latest_pickup_at = models.DateTimeField(null=True, blank=True)
     latest_pickup_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True, related_name='latest_pickup_tasks'
     )
-    qc_notes = models.TextField(blank=True, null=True)
+    
+    # Status Timestamps
+    ready_for_pickup_at = models.DateTimeField(
+        null=True, 
+        blank=True, 
+        db_index=True,
+        help_text='Timestamp when task was marked as Ready for Pickup'
+    )
+    
+    # Execution Tracking Fields (assignment → completion metrics)
+    first_assigned_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text='Timestamp of first technician assignment'
+    )
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text='Timestamp when task was marked as Completed'
+    )
+    return_count = models.IntegerField(
+        default=0,
+        help_text='Number of times task was returned to customer'
+    )
+    return_periods = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='List of {returned_at, reassigned_at} ISO timestamp pairs for net execution calculation'
+    )
+    workshop_periods = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='List of {sent_at, returned_at} ISO timestamp pairs excluding external workshop time'
+    )
+    execution_technicians = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='List of {user_id, name, role, assigned_at} for all technicians involved'
+    )
+    
+    # Backward compatibility properties
+    @property
+    def current_location_name(self):
+        """Returns the current location name for backward compatibility."""
+        return self.current_location.name if self.current_location else None
+
+    @property
+    def original_location_name(self):
+        """Returns the original location name for backward compatibility."""
+        return self.original_location_snapshot.name if self.original_location_snapshot else None
+
     # Derived properties below supply read-only access to event timestamps/users
     # by querying the TaskActivity history.
 
@@ -115,12 +189,30 @@ class Task(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            # Composite index for execution report queries
+            models.Index(
+                fields=['first_assigned_at', 'completed_at'],
+                name='idx_task_execution'
+            ),
+            models.Index(
+                fields=['completed_at', 'status'],
+                name='idx_task_completed'
+            ),
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._original_estimated_cost = self.estimated_cost
 
     def save(self, *args, **kwargs):
-        if not self.pk:  # Only for new instances
+        if not self.pk:
             if self.estimated_cost is not None:
                 self.total_cost = self.estimated_cost
+        elif self.estimated_cost != self._original_estimated_cost:
+            self.total_cost = self._calculate_total_cost()
         super().save(*args, **kwargs)
+        self._original_estimated_cost = self.estimated_cost
 
     # --- Activity-derived helpers and properties ---
     def _last_activity(self, activity_type):
@@ -164,19 +256,9 @@ class Task(models.Model):
 
     @property
     def original_location(self):
-        # Prefer snapshot if available
-        if getattr(self, 'original_location_snapshot', None):
-            return self.original_location_snapshot
-        acts = self.latest_workshop_activities
-        if not acts.exists():
-            return None
-        msg = acts.first().message or ''
-        if ' at ' in msg:
-            try:
-                return msg.split(' at ')[-1].strip().rstrip('.')
-            except Exception:
-                return None
-        return None
+        """Returns the original location object (before workshop)."""
+        # Return the snapshot FK directly
+        return self.original_location_snapshot
 
     @property
     def qc_rejected_at(self):
@@ -202,21 +284,42 @@ class Task(models.Model):
         User, on_delete=models.SET_NULL, null=True, blank=True, related_name='negotiated_tasks'
     )
 
+    objects = TaskQuerySet.as_manager()
+
+    @property
+    def outstanding_balance(self) -> Decimal:
+        return (self.total_cost or Decimal('0')) - (self.paid_amount or Decimal('0'))
+
+    @outstanding_balance.setter
+    def outstanding_balance(self, value):
+        pass  # Allows ORM annotation to set this attribute without error
+
     def _calculate_total_cost(self):
         estimated_cost = self.estimated_cost or Decimal('0.00')
         additive_costs = sum(item.amount for item in self.cost_breakdowns.filter(cost_type='Additive'))
         subtractive_costs = sum(item.amount for item in self.cost_breakdowns.filter(cost_type='Subtractive'))
         return estimated_cost + additive_costs - subtractive_costs
 
-    def update_payment_status(self):
-        if self.paid_amount == 0:
+    def update_payment_status(self, net_paid=None):
+        """Update payment_status based on paid_amount and net_paid.
+
+        Args:
+            net_paid: pre-computed sum of ALL payments (positive + negative). If None,
+                      it will be fetched from the DB. Pass it from signals to avoid
+                      an extra query when paid_amount is already being aggregated there.
+        """
+        if net_paid is None:
+            net_paid = self.payments.aggregate(total=models.Sum('amount'))['total'] or Decimal('0')
+
+        # All money paid was refunded back to the customer
+        if net_paid <= Decimal('0') and self.paid_amount > Decimal('0'):
+            self.payment_status = self.PaymentStatus.REFUNDED
+        elif self.paid_amount == Decimal('0'):
             self.payment_status = self.PaymentStatus.UNPAID
         elif self.paid_amount < self.total_cost:
             self.payment_status = self.PaymentStatus.PARTIALLY_PAID
-        elif self.paid_amount >= self.total_cost:
+        else:
             self.payment_status = self.PaymentStatus.FULLY_PAID
-            if not self.paid_date:
-                self.paid_date = timezone.now().date()
 
 
 class TaskActivity(models.Model):

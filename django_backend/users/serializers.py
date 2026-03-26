@@ -4,6 +4,32 @@ from .models import User
 from .models import Session, AuditLog
 
 
+def _get_os_name(ua: str) -> str:
+    if 'Windows' in ua:
+        return 'Windows'
+    if 'Mac OS' in ua or 'Macintosh' in ua:
+        return 'macOS'
+    if 'Linux' in ua:
+        return 'Linux'
+    if 'Android' in ua:
+        return 'Android'
+    if 'iPhone' in ua or 'iPad' in ua:
+        return 'iOS'
+    return 'Unknown OS'
+
+
+def _get_browser(ua: str) -> str:
+    if 'Chrome' in ua and 'Edg' not in ua:
+        return 'Chrome'
+    if 'Firefox' in ua:
+        return 'Firefox'
+    if 'Safari' in ua and 'Chrome' not in ua:
+        return 'Safari'
+    if 'Edg' in ua:
+        return 'Edge'
+    return 'Browser'
+
+
 class SessionSerializer(serializers.ModelSerializer):
     is_current = serializers.SerializerMethodField()
     device_info = serializers.SerializerMethodField()
@@ -44,33 +70,7 @@ class SessionSerializer(serializers.ModelSerializer):
     def get_device_info(self, obj):
         """Parse user agent to get friendly device name."""
         ua = obj.user_agent or ''
-        
-        # Simple parsing for common patterns
-        if 'Windows' in ua:
-            os_name = 'Windows'
-        elif 'Mac OS' in ua or 'Macintosh' in ua:
-            os_name = 'macOS'
-        elif 'Linux' in ua:
-            os_name = 'Linux'
-        elif 'Android' in ua:
-            os_name = 'Android'
-        elif 'iPhone' in ua or 'iPad' in ua:
-            os_name = 'iOS'
-        else:
-            os_name = 'Unknown OS'
-        
-        if 'Chrome' in ua and 'Edg' not in ua:
-            browser = 'Chrome'
-        elif 'Firefox' in ua:
-            browser = 'Firefox'
-        elif 'Safari' in ua and 'Chrome' not in ua:
-            browser = 'Safari'
-        elif 'Edg' in ua:
-            browser = 'Edge'
-        else:
-            browser = 'Browser'
-        
-        return f"{browser} on {os_name}"
+        return f"{_get_browser(ua)} on {_get_os_name(ua)}"
 
 
 class AuditLogSerializer(serializers.ModelSerializer):
@@ -84,11 +84,13 @@ class UserSerializer(serializers.ModelSerializer):
     profile_picture_url = serializers.SerializerMethodField()
     full_name = serializers.CharField(source='get_full_name', read_only=True)
 
+    active_task_count = serializers.IntegerField(required=False, read_only=True)
+
     class Meta:
         model = User
         fields = ('id', 'username', 'email', 'first_name', 'last_name', 'full_name',
-                    'phone', 'role', 'is_workshop', 'profile_picture', 'profile_picture_url', 'is_active', 'created_at', 'last_login') 
-        read_only_fields = ('id', 'created_at', 'last_login', 'full_name') 
+                    'phone', 'role', 'is_workshop', 'profile_picture', 'profile_picture_url', 'is_active', 'created_at', 'last_login', 'active_task_count') 
+        read_only_fields = ('id', 'created_at', 'last_login', 'full_name', 'active_task_count') 
         
     def get_profile_picture_url(self, obj):
         """Return absolute URL for profile picture that works in all environments."""

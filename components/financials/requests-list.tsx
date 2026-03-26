@@ -1,0 +1,459 @@
+'use client'
+
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  getUnifiedApprovalRequests,
+  approveExpenditureRequest,
+  rejectExpenditureRequest,
+  deleteExpenditureRequest,
+  approveDebtRequestFromList,
+  rejectDebtRequestFromList
+} from '@/lib/api-client';
+import { UnifiedApprovalRequest, isTransactionRequest, isDebtRequest } from '@/components/financials/types';
+import { Button } from "@/components/ui/core/button";
+import { Badge } from "@/components/ui/core/badge";
+import { Input } from "@/components/ui/core/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/core/select";
+import { useAuth } from '@/hooks/use-auth';
+import {
+  showExpenditureApprovedToast,
+  showExpenditureApprovalErrorToast,
+  showExpenditureRejectedToast,
+  showExpenditureRejectionErrorToast,
+  showExpenditureCancelledToast,
+  showExpenditureCancellationErrorToast,
+} from '@/components/notifications/toast';
+import React, { useState } from 'react';
+import { useIsMobile } from "@/hooks/use-mobile";
+import { format } from 'date-fns';
+import { Check, X, TrendingUp, TrendingDown, Search, FileText } from 'lucide-react';
+
+const getStatusBadge = (status: string) => {
+  switch (status) {
+    case 'Pending':
+      return <Badge className='bg-yellow-100 text-yellow-800'>Pending</Badge>
+    case 'Approved':
+      return <Badge className='bg-green-100 text-green-800'>Approved</Badge>
+    case 'Rejected':
+      return <Badge className='bg-red-100 text-red-800'>Rejected</Badge>
+    default:
+      return <Badge>{status}</Badge>
+  }
+}
+
+const getTypeBadge = (type: string) => {
+  if (type === 'Revenue') {
+    return (
+      <Badge className='bg-green-100 text-green-700 border-green-200'>
+        <TrendingUp className="h-3 w-3 mr-1" />
+        Revenue
+      </Badge>
+    );
+  }
+  return (
+    <Badge className='bg-amber-100 text-amber-700 border-amber-200'>
+      <TrendingDown className="h-3 w-3 mr-1" />
+      Expenditure
+    </Badge>
+  );
+}
+
+interface RequestCardProps {
+  readonly request: UnifiedApprovalRequest;
+  readonly isManager: boolean;
+  readonly isAccountant: boolean;
+  readonly onApprove: (request: UnifiedApprovalRequest) => void;
+  readonly onReject: (request: UnifiedApprovalRequest) => void;
+  readonly onCancel: (id: number) => void;
+  readonly isApprovePending: boolean;
+  readonly isRejectPending: boolean;
+  readonly isCancelPending: boolean;
+}
+
+function RequestCardMeta({ request, typeBadge }: { readonly request: UnifiedApprovalRequest; readonly typeBadge: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-2 mt-2 flex-wrap text-xs">
+      {typeBadge}
+      {getStatusBadge(request.status)}
+      <span className="text-muted-foreground">
+        by {request.requester_name}
+      </span>
+      <span className="text-muted-foreground">•</span>
+      <span className="text-muted-foreground">
+        {request.created_at ? format(new Date(request.created_at), 'MMM d, yyyy h:mm a') : 'N/A'}
+      </span>
+      {request.approver_name && (
+        <>
+          <span className="text-muted-foreground">•</span>
+          <span className="text-muted-foreground">
+            {request.status === 'Approved' ? '✓' : '✗'} by {request.approver_name}
+          </span>
+        </>
+      )}
+    </div>
+  );
+}
+
+function RequestCardActions({
+  request,
+  isManager,
+  isAccountant,
+  onApprove,
+  onReject,
+  onCancel,
+  isApprovePending,
+  isRejectPending,
+  isCancelPending
+}: RequestCardProps) {
+  if (request.status !== 'Pending') return null;
+  if (!isManager && !isAccountant) return null;
+
+  const isTransaction = isTransactionRequest(request);
+
+  return (
+    <div className="flex items-center gap-2 mt-3 pt-3 border-t">
+      {isManager && (
+        <>
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-green-600 border-green-600 hover:bg-green-50"
+            onClick={() => onApprove(request)}
+            disabled={isApprovePending}
+          >
+            <Check className="h-4 w-4 mr-1" /> Approve
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-red-600 border-red-600 hover:bg-red-50"
+            onClick={() => onReject(request)}
+            disabled={isRejectPending}
+          >
+            <X className="h-4 w-4 mr-1" /> Reject
+          </Button>
+        </>
+      )}
+      {isAccountant && !isManager && isTransaction && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="text-red-600 border-red-600 hover:bg-red-50"
+          onClick={() => onCancel(request.id)}
+          disabled={isCancelPending}
+        >
+          <X className="h-4 w-4 mr-1" /> Cancel
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function RequestCard(props: RequestCardProps) {
+  const { request } = props;
+  const isDebt = isDebtRequest(request);
+  const isTransaction = isTransactionRequest(request);
+
+  let iconBg = 'bg-gray-100 text-gray-600';
+  let icon = <FileText className="h-5 w-5" />;
+  let title = 'Unknown Request';
+  let subtitle = '';
+  let typeBadge = null;
+  let amountClass = '';
+
+  if (isDebt) {
+    iconBg = 'bg-purple-100 text-purple-600';
+    icon = <FileText className="h-5 w-5" />;
+    title = `Debt Request: ${request.task_title || ''}`;
+    subtitle = request.task_details?.customer_name || 'No customer';
+    typeBadge = <Badge className="bg-purple-100 text-purple-700 border-purple-200"><FileText className="h-3 w-3 mr-1" />Debt</Badge>;
+  } else if (isTransaction) {
+    const isRevenue = request.transaction_type === 'Revenue';
+    iconBg = isRevenue ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600';
+    icon = isRevenue ? <TrendingUp className="h-5 w-5" /> : <TrendingDown className="h-5 w-5" />;
+    title = request.description || 'Unknown Request';
+    subtitle = request.category?.name || 'No category';
+    typeBadge = getTypeBadge(request.transaction_type);
+    amountClass = isRevenue ? 'text-green-600' : 'text-amber-600';
+  }
+
+  const amount = isTransaction ? request.amount : null;
+
+  let borderColorClass = '';
+  if (request.status === 'Pending') borderColorClass = 'border-l-4 border-l-yellow-400';
+  else if (request.status === 'Approved') borderColorClass = 'border-l-4 border-l-green-400 opacity-75';
+  else if (request.status === 'Rejected') borderColorClass = 'border-l-4 border-l-red-400 opacity-75';
+
+  return (
+    <div
+      className={`rounded-lg border bg-card p-4 transition-all hover:shadow-md ${borderColorClass}`}
+    >
+      <div className="flex items-start gap-4">
+        {/* Icon */}
+        <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${iconBg}`}>
+          {icon}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2 flex-wrap">
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-sm truncate">{title}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
+            </div>
+
+            {/* Amount (for transactions) */}
+            {amount && (
+              <div className={`text-sm font-semibold ${amountClass}`}>
+                TSh {new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number.parseFloat(amount))}
+              </div>
+            )}
+
+            {/* Outstanding balance for debt */}
+            {isDebt && request.task_details?.outstanding_balance && (
+              <div className="text-sm font-semibold text-purple-600">
+                TSh {new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number.parseFloat(request.task_details.outstanding_balance))}
+              </div>
+            )}
+          </div>
+
+          <RequestCardMeta request={request} typeBadge={typeBadge} />
+          <RequestCardActions {...props} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function RequestsList() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isMobile = useIsMobile();
+
+  const [page, setPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [requestTypeFilter, setRequestTypeFilter] = useState('all'); // New: transaction/debt filter
+  const pageSize = 10;
+
+  const { data: requests, isLoading } = useQuery<any>({
+    queryKey: ['unifiedApprovalRequests', page, pageSize, searchTerm, statusFilter, typeFilter, requestTypeFilter],
+    queryFn: () => getUnifiedApprovalRequests({
+      page,
+      page_size: pageSize,
+      search: searchTerm || undefined,
+      status: statusFilter === 'all' ? undefined : statusFilter,
+      transaction_type: typeFilter === 'all' ? undefined : typeFilter,
+      request_type: requestTypeFilter === 'all' ? undefined : requestTypeFilter as 'transaction' | 'debt',
+    }),
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: approveExpenditureRequest,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['unifiedApprovalRequests'] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+      if (data.data.task_title) {
+        queryClient.invalidateQueries({ queryKey: ['task', data.data.task_title] });
+      }
+      showExpenditureApprovedToast();
+    },
+    onError: (error: any) => {
+      showExpenditureApprovalErrorToast(error.response?.data?.detail);
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: rejectExpenditureRequest,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['unifiedApprovalRequests'] });
+      showExpenditureRejectedToast();
+    },
+    onError: (error: any) => {
+      showExpenditureRejectionErrorToast(error.response?.data?.detail);
+    },
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: deleteExpenditureRequest,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['unifiedApprovalRequests'] });
+      showExpenditureCancelledToast();
+    },
+    onError: (error: any) => {
+      showExpenditureCancellationErrorToast(error.response?.data?.detail);
+    },
+  });
+
+  // Debt request mutations
+  const approveDebtMutation = useMutation({
+    mutationFn: approveDebtRequestFromList,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['unifiedApprovalRequests'] });
+      showExpenditureApprovedToast(); // Reuse toast for now
+    },
+    onError: (error: any) => {
+      showExpenditureApprovalErrorToast(error.response?.data?.detail);
+    },
+  });
+
+  const rejectDebtMutation = useMutation({
+    mutationFn: rejectDebtRequestFromList,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['unifiedApprovalRequests'] });
+      showExpenditureRejectedToast(); // Reuse toast for now
+    },
+    onError: (error: any) => {
+      showExpenditureRejectionErrorToast(error.response?.data?.detail);
+    },
+  });
+
+  const isManager = user?.role === 'Manager';
+  const isAccountant = user?.role === 'Accountant';
+
+  const handleApprove = (request: UnifiedApprovalRequest) => {
+    if (isDebtRequest(request)) {
+      approveDebtMutation.mutate(request.id);
+    } else {
+      approveMutation.mutate(request.id);
+    }
+  };
+
+  const handleReject = (request: UnifiedApprovalRequest) => {
+    if (isDebtRequest(request)) {
+      rejectDebtMutation.mutate(request.id);
+    } else {
+      rejectMutation.mutate(request.id);
+    }
+  };
+
+  const handleCancel = (id: number) => {
+    cancelMutation.mutate(id);
+  };
+
+  const hasActiveFilters = searchTerm || statusFilter !== 'all' || typeFilter !== 'all' || requestTypeFilter !== 'all';
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setStatusFilter('all');
+    setTypeFilter('all');
+    setRequestTypeFilter('all');
+    setPage(1);
+  };
+
+  return (
+    <div className='space-y-4'>
+      {/* Filter Toolbar */}
+      <div className={`flex ${isMobile ? 'flex-col' : 'flex-row'} gap-3`}>
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by description..."
+            value={searchTerm}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setPage(1);
+            }}
+            className="pl-10"
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); setPage(1); }}>
+          <SelectTrigger className={isMobile ? 'w-full' : 'w-[150px]'}>
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="Pending">Pending</SelectItem>
+            <SelectItem value="Approved">Approved</SelectItem>
+            <SelectItem value="Rejected">Rejected</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={typeFilter} onValueChange={(value) => { setTypeFilter(value); setPage(1); }}>
+          <SelectTrigger className={isMobile ? 'w-full' : 'w-[150px]'}>
+            <SelectValue placeholder="Type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Types</SelectItem>
+            <SelectItem value="Revenue">Revenue</SelectItem>
+            <SelectItem value="Expenditure">Expenditure</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={requestTypeFilter} onValueChange={(value) => { setRequestTypeFilter(value); setPage(1); }}>
+          <SelectTrigger className={isMobile ? 'w-full' : 'w-[150px]'}>
+            <SelectValue placeholder="Request Type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Requests</SelectItem>
+            <SelectItem value="transaction">Transactions</SelectItem>
+            <SelectItem value="debt">Debts</SelectItem>
+          </SelectContent>
+        </Select>
+        {hasActiveFilters && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearFilters}
+            className={`text-muted-foreground hover:text-foreground ${isMobile ? 'w-full' : ''}`}
+          >
+            <X className="h-4 w-4 mr-1" />
+            Clear
+          </Button>
+        )}
+      </div>
+
+      {/* Notification-Style Cards */}
+      <div className='space-y-3'>
+        {isLoading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 5 }, (_, i) => `skeleton-${i}`).map((skKey) => (
+              <div key={skKey} className="rounded-lg border bg-card p-4 animate-pulse">
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-full bg-muted" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-muted rounded w-3/4" />
+                    <div className="h-3 bg-muted rounded w-1/2" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (() => {
+          if ((requests?.results?.length ?? 0) === 0) return (
+            <div className="text-center py-10 text-muted-foreground">
+              No approval requests found
+            </div>
+          );
+          return requests!.results.map((request: UnifiedApprovalRequest) => (
+            <RequestCard
+              key={`${request.request_type}-${request.id}`}
+              request={request}
+              isManager={isManager}
+              isAccountant={isAccountant}
+              onApprove={handleApprove}
+              onReject={handleReject}
+              onCancel={handleCancel}
+              isApprovePending={approveMutation.isPending || approveDebtMutation.isPending}
+              isRejectPending={rejectMutation.isPending || rejectDebtMutation.isPending}
+              isCancelPending={cancelMutation.isPending}
+            />
+          ));
+        })()}
+        <div className="flex justify-end space-x-2 p-4">
+          <Button
+            onClick={() => setPage(prev => Math.max(1, prev - 1))}
+            disabled={!requests?.previous || isLoading}
+          >
+            Previous
+          </Button>
+          <Button
+            onClick={() => setPage(prev => prev + 1)}
+            disabled={!requests?.next || isLoading}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}

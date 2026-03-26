@@ -3,8 +3,10 @@ from django.utils.translation import gettext_lazy as _
 from users.models import User
 from django.utils import timezone
 
+_TASK_REF = 'Eapp.Task'
+
 def get_current_date():
-    return timezone.now().date()
+    return timezone.localdate()
 
 class PaymentMethod(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -32,10 +34,11 @@ class PaymentCategory(models.Model):
 
 class Payment(models.Model):
 
-    task = models.ForeignKey('Eapp.Task', on_delete=models.CASCADE, related_name='payments', null=True, blank=True)
+    task = models.ForeignKey(_TASK_REF, on_delete=models.CASCADE, related_name='payments', null=True, blank=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     date = models.DateField(default=get_current_date)
-    method = models.ForeignKey(PaymentMethod, on_delete=models.PROTECT)
+    method = models.ForeignKey(PaymentMethod, on_delete=models.SET_NULL, null=True, blank=True)
+    payment_method_name = models.CharField(max_length=100, blank=True, null=True)
     description = models.CharField(max_length=255, default='Customer Payment', blank=True)
     category = models.ForeignKey(
         PaymentCategory,
@@ -44,6 +47,11 @@ class Payment(models.Model):
         blank=True,
         related_name='payments'
     )
+
+    def save(self, *args, **kwargs):
+        if self.method and not self.payment_method_name:
+            self.payment_method_name = self.method.name
+        super().save(*args, **kwargs)
 
     def __str__(self):
         if self.task:
@@ -63,17 +71,10 @@ class CostBreakdown(models.Model):
         SUBTRACTIVE = 'Subtractive', _('Subtractive')
         INCLUSIVE = 'Inclusive', _('Inclusive')
 
-    class Status(models.TextChoices):
-        PENDING = 'Pending', _('Pending')
-        APPROVED = 'Approved', _('Approved')
-        REJECTED = 'Rejected', _('Rejected')
-
-
-    task = models.ForeignKey('Eapp.Task', on_delete=models.CASCADE, related_name='cost_breakdowns')
+    task = models.ForeignKey(_TASK_REF, on_delete=models.CASCADE, related_name='cost_breakdowns')
     description = models.CharField(max_length=255)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     cost_type = models.CharField(max_length=20, choices=CostType.choices, default=CostType.INCLUSIVE)
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.APPROVED)
     category = models.CharField(max_length=100, default='Inclusive')
     created_at = models.DateTimeField(auto_now_add=True)
     reason = models.TextField(blank=True, null=True)
@@ -102,30 +103,156 @@ class Account(models.Model):
         ordering = ['name']
 
 
-class ExpenditureRequest(models.Model):
+class ApprovalRequest(models.Model):
+    """
+    Abstract base model for all approval requests.
+    Uses multi-table inheritance for polymorphism.
+    Subclasses: TransactionRequest, DebtRequest
+    """
     class Status(models.TextChoices):
         PENDING = 'Pending', _('Pending')
         APPROVED = 'Approved', _('Approved')
         REJECTED = 'Rejected', _('Rejected')
-
-    description = models.TextField()
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
-    task = models.ForeignKey('Eapp.Task', on_delete=models.SET_NULL, null=True, blank=True, related_name='expenditure_requests')
-    category = models.ForeignKey(PaymentCategory, on_delete=models.PROTECT)
-    payment_method = models.ForeignKey(PaymentMethod, on_delete=models.PROTECT)
     
+    # Common approval fields
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
-    cost_type = models.CharField(max_length=20, choices=CostBreakdown.CostType.choices, default=CostBreakdown.CostType.INCLUSIVE)
-
-    requester = models.ForeignKey(User, on_delete=models.PROTECT, related_name='expenditure_requests_made')
-    approver = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='expenditure_requests_approved')
+    requester = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='%(class)s_requests_made'
+    )
+    approver = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='%(class)s_requests_approved'
+    )
     
+    # Snapshot fields to preserve names if entities are deleted
+    requester_name = models.CharField(max_length=150, blank=True, null=True)
+    approver_name = models.CharField(max_length=150, blank=True, null=True)
+    
+    # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f'Expenditure request for {self.amount} by {self.requester.username}'
-
+    
     class Meta:
         ordering = ['-created_at']
-        verbose_name_plural = 'Expenditure Requests'
+    
+    def save(self, *args, **kwargs):
+        # Auto-populate snapshot fields
+        if self.requester and not self.requester_name:
+            self.requester_name = self.requester.get_full_name() or self.requester.username
+        if self.approver and not self.approver_name:
+            self.approver_name = self.approver.get_full_name() or self.approver.username
+        super().save(*args, **kwargs)
+    
+    # Abstract methods to be implemented by subclasses
+    def get_description(self):
+        """Return human-readable description of the request."""
+        raise NotImplementedError(f"{self.__class__.__name__} must implement get_description()")
+    
+    def get_amount(self):
+        """Return the monetary amount (if applicable), or None."""
+        raise NotImplementedError(f"{self.__class__.__name__} must implement get_amount()")
+    
+    def get_type_display(self):
+        """Return the request type for display (e.g., 'Expenditure', 'Debt')."""
+        raise NotImplementedError(f"{self.__class__.__name__} must implement get_type_display()")
+
+
+class TransactionRequest(ApprovalRequest):
+    """
+    Request for financial transactions (Expenditure or Revenue).
+    Inherits common approval fields from ApprovalRequest.
+    - Expenditure: Money going out (creates negative Payment)
+    - Revenue: Money coming in (creates positive Payment)
+    """
+    class TransactionType(models.TextChoices):
+        EXPENDITURE = 'Expenditure', _('Expenditure')
+        REVENUE = 'Revenue', _('Revenue')
+
+    # Transaction-specific fields
+    transaction_type = models.CharField(
+        max_length=20, 
+        choices=TransactionType.choices, 
+        default=TransactionType.EXPENDITURE
+    )
+    description = models.TextField()
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    task = models.ForeignKey(_TASK_REF, on_delete=models.SET_NULL, null=True, blank=True, related_name='transaction_requests')
+    category = models.ForeignKey(PaymentCategory, on_delete=models.PROTECT)
+    payment_method = models.ForeignKey(PaymentMethod, on_delete=models.SET_NULL, null=True, blank=True)
+    payment_method_name = models.CharField(max_length=100, blank=True, null=True)
+    
+    # cost_type only applies to Expenditures linked to tasks
+    cost_type = models.CharField(
+        max_length=20, 
+        choices=CostBreakdown.CostType.choices, 
+        null=True, 
+        blank=True
+    )
+
+    def save(self, *args, **kwargs):
+        # Snapshot payment method name
+        if self.payment_method and not self.payment_method_name:
+            self.payment_method_name = self.payment_method.name
+        super().save(*args, **kwargs)
+    
+    # Implement abstract methods
+    def get_description(self):
+        return self.description
+    
+    def get_amount(self):
+        return self.amount
+    
+    def get_type_display(self):
+        return self.get_transaction_type_display()
+
+    def __str__(self):
+        return f'{self.transaction_type} request for {self.amount} by {self.requester_name or "Unknown"}'
+
+    class Meta:
+        verbose_name_plural = 'Transaction Requests'
+
+
+class DebtRequest(ApprovalRequest):
+    """
+    Request to mark a task as debt.
+    Inherits common approval fields from ApprovalRequest.
+    """
+    # Debt-specific fields
+    task = models.ForeignKey(_TASK_REF, on_delete=models.CASCADE, related_name='debt_requests')
+    task_title = models.CharField(max_length=255, blank=True)
+    
+    def save(self, *args, **kwargs):
+        # Snapshot task title
+        if self.task and not self.task_title:
+            self.task_title = self.task.title
+        super().save(*args, **kwargs)
+    
+    # Implement abstract methods
+    def get_description(self):
+        return f"Mark {self.task_title} as debt"
+    
+    def get_amount(self):
+        # Return outstanding balance if available
+        if hasattr(self.task, 'outstanding_balance'):
+            return self.task.outstanding_balance
+        return None
+    
+    def get_type_display(self):
+        return "Debt Request"
+    
+    def __str__(self):
+        return f'Debt request for {self.task_title} by {self.requester_name or "Unknown"}'
+    
+    class Meta:
+        verbose_name_plural = 'Debt Requests'
+
+
+# Backwards compatibility alias
+ExpenditureRequest = TransactionRequest

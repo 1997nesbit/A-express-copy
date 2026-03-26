@@ -2,13 +2,43 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/layout/card";
 import { RevenueOverview } from "./revenue-overview";
-import { ClipboardList, Users, Calendar, UserCog, CreditCard, FileText, BarChart3, Banknote } from "lucide-react";
+import { ClipboardList, Users, UserCog, CreditCard, FileText, Banknote, Package, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/core/button";
 
 
-import { ManagerTasksKpi } from "./manager-tasks-kpi";
+import { useState, useEffect } from "react";
+import { getDashboardStats } from "@/lib/api-client";
 
 export function ManagerDashboard() {
+  const [stats, setStats] = useState({
+    activeTasksCount: 0,
+    tasksReadyForPickupCount: 0,
+    revenueThisMonth: 0,
+    totalDebtBalance: 0,
+  });
+  const [loading, setLoading] = useState(true);
+
+  
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const data = await getDashboardStats();
+        setStats({
+          activeTasksCount: data.active_tasks_count,
+          tasksReadyForPickupCount: data.tasks_ready_for_pickup_count,
+          revenueThisMonth: data.revenue_this_month,
+          totalDebtBalance: data.total_debt_balance,
+        });
+      } catch (error) {
+        console.error("Failed to fetch dashboard stats", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
   return (
     <div className="space-y-6 p-6">
       <div>
@@ -21,7 +51,41 @@ export function ManagerDashboard() {
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <RevenueOverview variant="today" />
-        <ManagerTasksKpi />
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active Tasks</CardTitle>
+            <ClipboardList className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{loading ? "-" : stats.activeTasksCount}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Tasks Ready for Pickup</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{loading ? "-" : stats.tasksReadyForPickupCount}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Outstanding Debt</CardTitle>
+            <AlertCircle className="h-4 w-4 text-orange-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {loading ? "-" : new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'TZS',
+              }).format(stats.totalDebtBalance)}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Total unpaid debt balance
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Quick Actions */}

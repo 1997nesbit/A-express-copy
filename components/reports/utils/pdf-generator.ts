@@ -6,7 +6,7 @@ import {
     generateOutstandingPaymentsPDF,
     generatePaymentMethodsPDF,
     generateTaskStatusPDF,
-    generateTurnaroundTimePDF,
+    generateTaskExecutionPDF,
     generateInventoryLocationPDF,
     generateTechnicianPerformancePDF,
     generateTechnicianWorkloadPDF,
@@ -19,7 +19,7 @@ const API_ENDPOINTS: Record<string, string> = {
     "outstanding-payments": "/reports/outstanding-payments/",
     "payment-methods": "/reports/payment-methods/",
     "task-status": "/reports/task-status/",
-    "turnaround-time": "/reports/turnaround-time/",
+    "task-execution": "/reports/task-execution/",
     "workload": "/reports/technician-workload/",
     "performance": "/reports/technician-performance/",
     "inventory-location": "/reports/laptops-in-shop/",
@@ -27,12 +27,12 @@ const API_ENDPOINTS: Record<string, string> = {
 };
 
 // Reports that need date range parameters
-const DATE_RANGE_REPORTS = ["technician-performance", "payment-methods"];
+const DATE_RANGE_REPORTS = new Set(["technician-performance", "payment-methods"]);
 
 /**
  * Add standard header to PDF
  */
-const addHeader = (pdf: jsPDF, reportTitle: string, category: string): number => {
+const addHeader = (pdf: jsPDF, reportTitle: string, category: string, dateRange: string): number => {
     // Brand
     pdf.setFontSize(20);
     pdf.setTextColor(...PDF_COLORS.primary);
@@ -48,7 +48,9 @@ const addHeader = (pdf: jsPDF, reportTitle: string, category: string): number =>
     pdf.setTextColor(...PDF_COLORS.neutral);
     pdf.text(`Generated on: ${new Date().toLocaleString()}`, 20, 45);
     pdf.text(`Report Category: ${category}`, 20, 52);
-    pdf.text(`Date Range: Last 30 Days`, 20, 59);
+    // Use proper capitalization for date range
+    const formattedDateRange = dateRange.charAt(0).toUpperCase() + dateRange.slice(1);
+    pdf.text(`Date Range: ${formattedDateRange}`, 20, 59);
 
     return 75; // Starting Y position for content
 };
@@ -96,8 +98,8 @@ const generateReportContent = (
         case "outstanding_payments":
             generateOutstandingPaymentsPDF(pdf, reportData, yPosition);
             break;
-        case "turnaround_time":
-            generateTurnaroundTimePDF(pdf, reportData, yPosition);
+        case "task_execution":
+            generateTaskExecutionPDF(pdf, reportData, yPosition);
             break;
         case "inventory_location":
             generateInventoryLocationPDF(pdf, reportData, yPosition);
@@ -125,7 +127,8 @@ export const generatePDF = async (
         let reportType = "";
 
         // If we have the report data already from viewing, use it
-        if (selectedReport && selectedReport.id === reportId) {
+        // UNLESS it's outstanding-payments, which needs a special PDF export fetch
+        if (selectedReport?.id === reportId && reportId !== 'outstanding-payments') {
             reportData = selectedReport.data.report;
             reportType = selectedReport.data.type;
         } else {
@@ -137,8 +140,12 @@ export const generatePDF = async (
             }
 
             const params: Record<string, string> = {};
-            if (DATE_RANGE_REPORTS.includes(reportId)) {
+            if (DATE_RANGE_REPORTS.has(reportId)) {
                 params.date_range = "last_30_days";
+            }
+
+            if (reportId === 'outstanding-payments') {
+                params.pdf_export = "true";
             }
 
             // Use apiClient with cookie auth
@@ -161,11 +168,26 @@ export const generatePDF = async (
         const allReports = [...financialReports, ...operationalReports, ...technicianReports];
         const report = allReports.find((r) => r.id === reportId);
 
+        // Extract date range description
+        let dateRangeDescription = reportData.duration_info?.description || "Custom Range";
+
+        if (reportData.start_date && reportData.end_date) {
+            const formatDate = (isoString: string) => {
+                return new Date(isoString).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric'
+                });
+            };
+            dateRangeDescription = `${formatDate(reportData.start_date)} - ${formatDate(reportData.end_date)}`;
+        }
+
         // Add header
         const yPosition = addHeader(
             pdf,
-            report?.title || reportId.replace(/-/g, " "),
-            report?.category || "General"
+            report?.title || reportId.replaceAll('-', " "),
+            report?.category || "General",
+            dateRangeDescription
         );
 
         // Generate report content
@@ -175,7 +197,7 @@ export const generatePDF = async (
         addFooter(pdf);
 
         // Save the PDF
-        const fileName = `${(report?.title || reportId).replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.pdf`;
+        const fileName = `${(report?.title || reportId).replaceAll(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.pdf`;
         pdf.save(fileName);
 
     } catch (error) {

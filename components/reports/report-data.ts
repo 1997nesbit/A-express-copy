@@ -1,6 +1,5 @@
 import type React from "react"
 import {
-  DollarSign,
   CreditCard,
   PieChart,
   ClipboardList,
@@ -53,8 +52,8 @@ export const financialReports: ReportCard[] = [
   },
   {
     id: "payment-methods",
-      title: "Revenue Summary Report",
-      description: "Comprehensive summary of revenue by payment methods and channels",
+    title: "Revenue Summary Report",
+    description: "Comprehensive summary of revenue by payment methods and channels",
     icon: PieChart,
     href: "/dashboard/reports/payment-methods",
     category: "Financial",
@@ -66,7 +65,7 @@ export const financialReports: ReportCard[] = [
 export const operationalReports: ReportCard[] = [
   {
     id: "task-status",
-    title: "Task Report",
+    title: "Task Status Report",
     description: "Current number of tasks in each status category",
     icon: ClipboardList,
     href: "/dashboard/reports/task-status",
@@ -76,11 +75,11 @@ export const operationalReports: ReportCard[] = [
     canGeneratePDF: true,
   },
   {
-    id: "turnaround-time",
-    title: "Average Turnaround Time",
-    description: "Measure repair efficiency and identify bottlenecks",
+    id: "task-execution",
+    title: "Task Execution Report",
+    description: "Task completion timeline analysis",
     icon: Clock,
-    href: "/dashboard/reports/turnaround",
+    href: "/dashboard/reports/task-execution",
     category: "Operational",
     lastGenerated: "2 hours ago",
     canGeneratePDF: true,

@@ -25,12 +25,14 @@ export const generateTaskStatusPDF = (
     const totalTasks = data.total_tasks || 0;
 
     const completedTasks = statusDistribution.find((s: any) => s.status === "Completed")?.count || 0;
+    const readyForPickupTasks = statusDistribution.find((s: any) => s.status === "Ready for Pickup")?.count || 0;
     const inProgressTasks = statusDistribution.find((s: any) => s.status === "In Progress")?.count || 0;
 
     const summaryData: [string, string][] = [
         ["Total Tasks", totalTasks.toString()],
-        ["Completed Tasks", completedTasks.toString()],
+        ["Ready for Pickup", readyForPickupTasks.toString()],
         ["In Progress Tasks", inProgressTasks.toString()],
+        ["Overdue Pickup (>7 Days)", (data.overdue_pickup_count || 0).toString()],
         ["Completion Rate", totalTasks > 0 ? `${((completedTasks / totalTasks) * 100).toFixed(1)}%` : "0%"],
     ];
 
@@ -76,88 +78,138 @@ export const generateTaskStatusPDF = (
             headStyles: { fillColor: PDF_COLORS.warning },
             margin: { left: 20, right: 20 },
         });
+
+        yPosition = getLastTableY(pdf);
+    }
+
+    // Overdue Tasks Section
+    const overdueTasks = data.overdue_tasks || [];
+    if (overdueTasks.length > 0) {
+        yPosition = checkPageBreak(pdf, yPosition, 250);
+        yPosition = addSectionHeader(pdf, "Top 10 Overdue for Pickup", yPosition);
+
+        const overdueData = overdueTasks.map((task: any) => [
+            task.title || "N/A",
+            task.customer_name || "N/A",
+            task.customer_phone || "N/A",
+            `${task.days_overdue} days`,
+        ]);
+
+        autoTable(pdf, {
+            head: [["Task Title", "Customer", "Phone", "Days Overdue"]],
+            body: overdueData,
+            startY: yPosition,
+            theme: "grid",
+            headStyles: { fillColor: PDF_COLORS.danger },
+            margin: { left: 20, right: 20 },
+        });
     }
 };
 
 /**
- * Generate Turnaround Time PDF content
+ * Generate Task Execution PDF content
  */
-export const generateTurnaroundTimePDF = (
+export const generateTaskExecutionPDF = (
     pdf: jsPDF,
     data: any,
     startY: number
 ): void => {
-    let yPosition = addReportTitle(pdf, "Turnaround Time Report", startY);
+    let yPosition = addReportTitle(pdf, "Task Execution Report", startY);
 
     // Summary
     const summary = data.summary || {};
     const taskDetails = data.task_details || [];
 
     const summaryData: [string, string][] = [
-        ["Overall Average", summary.overall_average ? `${summary.overall_average} days` : "N/A"],
-        ["Best Period", summary.best_period || "N/A"],
-        ["Improvement", summary.improvement ? `${summary.improvement}%` : "N/A"],
+        ["Overall Avg Exec", summary.overall_average_hours === undefined ? "N/A" : `${summary.overall_average_hours} hours`],
+        ["Overall Avg Workshop", summary.overall_average_workshop_hours === undefined ? "N/A" : `${summary.overall_average_workshop_hours} hours`],
         ["Tasks Analyzed", summary.total_tasks_analyzed ? `${summary.total_tasks_analyzed} tasks` : "0"],
-        ["Fastest Task", taskDetails.length > 0 ? `${Math.min(...taskDetails.map((t: any) => t.turnaround_days)).toFixed(1)} days` : "N/A"],
-        ["Slowest Task", taskDetails.length > 0 ? `${Math.max(...taskDetails.map((t: any) => t.turnaround_days)).toFixed(1)} days` : "N/A"],
+        ["Tasks sent to Workshop", summary.total_tasks_workshop ? `${summary.total_tasks_workshop} tasks` : "0"],
+        ["Best Period", summary.best_period || "N/A"],
+        ["Fastest Task", summary.fastest_task_hours === undefined ? "N/A" : `${summary.fastest_task_hours} hours`],
     ];
 
     yPosition = addSummaryTable(pdf, summaryData, yPosition, PDF_COLORS.info);
+    yPosition += 5; // Extra spacing after summary
 
-    // Individual Task Details
-    if (taskDetails.length > 0) {
-        yPosition = addSectionHeader(pdf, "Individual Task Turnaround Times", yPosition);
+    // Top 5 Fastest Tasks
+    const top5Fastest = summary.top_5_fastest || [];
+    if (top5Fastest.length > 0) {
+        yPosition = checkPageBreak(pdf, yPosition, 250);
+        yPosition = addSectionHeader(pdf, "Top 5 Fastest Tasks", yPosition);
 
-        const taskData = taskDetails.map((task: any) => [
-            task.title || "N/A",
+        const fastData = top5Fastest.map((task: any) => [
+            task.task_title || task.title || "N/A",
             task.customer_name || "N/A",
-            task.intake_date ? `${task.intake_date} ${task.intake_time}` : "N/A",
-            task.pickup_date ? `${task.pickup_date} ${task.pickup_time}` : "N/A",
-            task.assigned_technician || "Unassigned",
-            task.turnaround_days ? `${task.turnaround_days} days` : "N/A",
+            task.technicians || "Unassigned",
+            task.execution_hours ? `${task.execution_hours}` : "0",
+            task.workshop_hours ? `${task.workshop_hours}` : "0",
         ]);
 
         autoTable(pdf, {
-            head: [["Task", "Customer", "Intake", "Pickup", "Technician", "Turnaround"]],
-            body: taskData,
+            head: [["Task", "Customer", "Techs", "Exec(h)", "Work(h)"]],
+            body: fastData,
             startY: yPosition,
             theme: "grid",
-            headStyles: { fillColor: PDF_COLORS.technician.secondary },
+            headStyles: { fillColor: PDF_COLORS.success },
             margin: { left: 20, right: 20 },
-            styles: { fontSize: 7, cellPadding: 2 },
-            columnStyles: {
-                0: { cellWidth: "auto" },
-                1: { cellWidth: "auto" },
-                2: { cellWidth: "auto" },
-                3: { cellWidth: "auto" },
-                4: { cellWidth: "auto" },
-                5: { cellWidth: "auto" },
-            },
+            styles: { fontSize: 8, cellPadding: 3 },
         });
 
-        yPosition = getLastTableY(pdf);
+        yPosition = getLastTableY(pdf, 20); // Increased spacing
+    }
+
+    // Top 5 Slowest Tasks
+    const top5Slowest = summary.top_5_slowest || [];
+    if (top5Slowest.length > 0) {
+        yPosition = checkPageBreak(pdf, yPosition, 250);
+        yPosition = addSectionHeader(pdf, "Top 5 Slowest Tasks", yPosition);
+
+        const slowData = top5Slowest.map((task: any) => [
+            task.task_title || task.title || "N/A",
+            task.customer_name || "N/A",
+            task.technicians || "Unassigned",
+            task.execution_hours ? `${task.execution_hours}` : "0",
+            task.workshop_hours ? `${task.workshop_hours}` : "0",
+        ]);
+
+        autoTable(pdf, {
+            head: [["Task", "Customer", "Techs", "Exec(h)", "Work(h)"]],
+            body: slowData,
+            startY: yPosition,
+            theme: "grid",
+            headStyles: { fillColor: PDF_COLORS.danger },
+            margin: { left: 20, right: 20 },
+            styles: { fontSize: 8, cellPadding: 3 },
+        });
+
+        yPosition = getLastTableY(pdf, 20); // Increased spacing
     }
 
     // Turnaround Time by Period
     if (data.periods?.length > 0) {
-        yPosition = addSectionHeader(pdf, "Turnaround Time by Period", yPosition);
+        yPosition = checkPageBreak(pdf, yPosition, 250);
+        yPosition = addSectionHeader(pdf, "Task Execution by Period", yPosition);
 
         const turnaroundData = data.periods.map((period: any) => [
             period.period,
-            period.average_turnaround ? `${period.average_turnaround} days` : "N/A",
+            period.average_execution_hours === undefined ? "N/A" : `${period.average_execution_hours}h`,
+            period.average_workshop_hours === undefined ? "0h" : `${period.average_workshop_hours}h`,
+            period.workshop_count?.toString() || "0",
             period.tasks_completed?.toString() || "0",
         ]);
 
         autoTable(pdf, {
-            head: [["Period", "Avg Turnaround", "Tasks Completed"]],
+            head: [["Period", "Avg Exec", "Avg Wrkshp", "Wrkshp Count", "Completed"]],
             body: turnaroundData,
             startY: yPosition,
             theme: "grid",
             headStyles: { fillColor: PDF_COLORS.success },
             margin: { left: 20, right: 20 },
+            styles: { fontSize: 8, cellPadding: 3 },
         });
 
-        yPosition = getLastTableY(pdf);
+        yPosition = getLastTableY(pdf, 20);
     }
 
     // Performance Analysis
@@ -166,16 +218,24 @@ export const generateTurnaroundTimePDF = (
         pdf.setTextColor(...PDF_COLORS.success);
         yPosition += 8;
 
-        const turnaroundDays = taskDetails.map((t: any) => t.turnaround_days);
-        const excellent = turnaroundDays.filter((d: number) => d <= 3).length;
-        const good = turnaroundDays.filter((d: number) => d > 3 && d <= 7).length;
-        const average = turnaroundDays.filter((d: number) => d > 7 && d <= 14).length;
-        const needsImprovement = turnaroundDays.filter((d: number) => d > 14).length;
+        const executionHours = taskDetails.map((t: any) => t.execution_hours);
+        // Thresholds in hours: 3 days = 72h, 7 days = 168h, 14 days = 336h
+        const excellent = executionHours.filter((h: number) => h <= 72).length;
+        const good = executionHours.filter((h: number) => h > 72 && h <= 168).length;
+        const average = executionHours.filter((h: number) => h > 168 && h <= 336).length;
+        const needsImprovement = executionHours.filter((h: number) => h > 336).length;
 
         // Efficiency rating
-        const efficiencyScore = ((excellent * 1 + good * 0.8 + average * 0.6 + needsImprovement * 0.3) / turnaroundDays.length) * 100;
+        const efficiencyScore = ((excellent * 1 + good * 0.8 + average * 0.6 + needsImprovement * 0.3) / executionHours.length) * 100;
         pdf.setFontSize(10);
-        const efficiencyColor = efficiencyScore >= 80 ? PDF_COLORS.success : efficiencyScore >= 60 ? PDF_COLORS.warning : PDF_COLORS.danger;
+        let efficiencyColor;
+        if (efficiencyScore >= 80) {
+            efficiencyColor = PDF_COLORS.success;
+        } else if (efficiencyScore >= 60) {
+            efficiencyColor = PDF_COLORS.warning;
+        } else {
+            efficiencyColor = PDF_COLORS.danger;
+        }
         pdf.setTextColor(...efficiencyColor);
         pdf.text(`Overall Efficiency Score: ${efficiencyScore.toFixed(1)}%`, 20, yPosition);
     }
@@ -217,13 +277,23 @@ export const generateInventoryLocationPDF = (
     if (data.locations?.length > 0) {
         yPosition = addSectionHeader(pdf, "Inventory by Location", yPosition);
 
-        const locationData = data.locations.map((location: any) => [
-            location.location,
-            location.laptop_count?.toString() || "0",
-            location.capacity?.toString() || "0",
-            `${location.utilization || "0"}%`,
-            location.utilization >= 90 ? "Full" : location.utilization >= 70 ? "Busy" : "Available",
-        ]);
+        const locationData = data.locations.map((location: any) => {
+            let locationStatus: string;
+            if (location.utilization >= 90) {
+                locationStatus = "Full";
+            } else if (location.utilization >= 70) {
+                locationStatus = "Busy";
+            } else {
+                locationStatus = "Available";
+            }
+            return [
+                location.location,
+                location.laptop_count?.toString() || "0",
+                location.capacity?.toString() || "0",
+                `${location.utilization || "0"}%`,
+                locationStatus,
+            ];
+        });
 
         autoTable(pdf, {
             head: [["Location", "Laptop Count", "Capacity", "Utilization", "Status"]],

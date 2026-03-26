@@ -3,18 +3,20 @@
 import { useState } from 'react';
 import { useAccounts, Account } from '@/hooks/use-accounts';
 import { Button } from '@/components/ui/core/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/layout/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/layout/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/layout/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/feedback/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/feedback/alert-dialog';
 import { Input } from '@/components/ui/core/input';
 import { Label } from '@/components/ui/core/label';
 import { CurrencyInput } from '@/components/ui/core/currency-input';
-import { PlusCircle, Edit, Trash2, Loader2, DollarSign, Banknote } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Loader2, DollarSign } from 'lucide-react';
 import { format } from 'date-fns';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export function AccountsManagementPage() {
   const { accounts, isLoadingAccounts, createAccount, updateAccount, deleteAccount, isCreating, isUpdating, isDeleting } = useAccounts();
+  const isMobile = useIsMobile();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
@@ -57,13 +59,14 @@ export function AccountsManagementPage() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center"><Banknote className="mr-2" /> Internal Accounts</CardTitle>
-            <CardDescription>Create and manage internal company accounts.</CardDescription>
-          </div>
+    <div className="space-y-6 p-4 md:p-6">
+      {/* Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Internal Accounts</h1>
+          <p className="text-muted-foreground">Create and manage internal company accounts</p>
+        </div>
+        <div className="flex items-center space-x-2">
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button>
@@ -94,68 +97,128 @@ export function AccountsManagementPage() {
             </DialogContent>
           </Dialog>
         </div>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>ID</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Balance</TableHead>
-              <TableHead>Created By</TableHead>
-              <TableHead>Created At</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {accounts.map((account) => (
-              <TableRow key={account.id}>
-                <TableCell>{account.id}</TableCell>
-                <TableCell className="font-medium">{account.name}</TableCell>
-                <TableCell>
-                  <div className="flex items-center">
-                    <DollarSign className="h-4 w-4 mr-1 text-green-600" />
-                    {parseFloat(account.balance).toLocaleString('sw-TZ', { style: 'currency', currency: 'TZS' })}
+      </div>
+
+      <Card>
+        <CardContent className="pt-6">
+          {isMobile ? (
+            <div className="space-y-4">
+              {accounts.map((account) => (
+                <Card key={account.id}>
+                  <CardHeader className="p-4 pb-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="font-semibold">{account.name}</div>
+                        <div className="text-xs text-muted-foreground">ID: {account.id}</div>
+                      </div>
+                      <div className="flex items-center text-green-600 font-bold">
+                        <DollarSign className="h-4 w-4 mr-1" />
+                        {Number.parseFloat(account.balance).toLocaleString('sw-TZ', { style: 'currency', currency: 'TZS' })}
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-0 space-y-2">
+                    <div className="text-sm">
+                      <span className="text-muted-foreground">Created By: </span>
+                      {account.created_by?.full_name || 'N/A'}
+                    </div>
+                    <div className="text-sm">
+                      <span className="text-muted-foreground">Created At: </span>
+                      {format(new Date(account.created_at), 'PPP')}
+                    </div>
+                  </CardContent>
+                  <div className="p-2 bg-gray-50 flex justify-end gap-2 border-t rounded-b-lg">
+                    <Button variant="ghost" size="sm" onClick={() => openEditDialog(account)}>
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-600">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will permanently delete the account "{account.name}". This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleDelete(account.id)} disabled={isDeleting}>
+                            {isDeleting ? 'Deleting...' : 'Delete'}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
-                </TableCell>
-                <TableCell>{account.created_by?.full_name || 'N/A'}</TableCell>
-                <TableCell>{format(new Date(account.created_at), 'PPP')}</TableCell>
-                <TableCell className="text-right">
-                  <Button variant="ghost" size="sm" onClick={() => openEditDialog(account)}>
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-600">
-                        <Trash2 className="h-4 w-4" />
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>ID</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Balance</TableHead>
+                  <TableHead>Created By</TableHead>
+                  <TableHead>Created At</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {accounts.map((account) => (
+                  <TableRow key={account.id}>
+                    <TableCell>{account.id}</TableCell>
+                    <TableCell className="font-medium">{account.name}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center">
+                        <DollarSign className="h-4 w-4 mr-1 text-green-600" />
+                        {Number.parseFloat(account.balance).toLocaleString('sw-TZ', { style: 'currency', currency: 'TZS' })}
+                      </div>
+                    </TableCell>
+                    <TableCell>{account.created_by?.full_name || 'N/A'}</TableCell>
+                    <TableCell>{format(new Date(account.created_at), 'PPP')}</TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" onClick={() => openEditDialog(account)}>
+                        <Edit className="h-4 w-4" />
                       </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will permanently delete the account "{account.name}". This action cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleDelete(account.id)} disabled={isDeleting}>
-                          {isDeleting ? 'Deleting...' : 'Delete'}
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        {accounts.length === 0 && (
-          <div className="text-center py-12 text-gray-500">
-            No accounts found. Get started by creating one.
-          </div>
-        )}
-      </CardContent>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-600">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will permanently delete the account "{account.name}". This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDelete(account.id)} disabled={isDeleting}>
+                              {isDeleting ? 'Deleting...' : 'Delete'}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+          {accounts.length === 0 && (
+            <div className="text-center py-12 text-gray-500">
+              No accounts found. Get started by creating one.
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -177,6 +240,6 @@ export function AccountsManagementPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Card>
+    </div>
   );
 }

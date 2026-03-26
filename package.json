@@ -2,11 +2,13 @@
   "name": "aplus-express-app",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "build": "next build",
     "dev": "next dev",
     "lint": "next lint",
-    "start": "next start"
+    "start": "next start",
+    "sonar": "dotenv -e .env.local -- sonar-scanner"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "latest",
@@ -36,7 +38,7 @@
     "@radix-ui/react-toggle": "latest",
     "@radix-ui/react-toggle-group": "latest",
     "@radix-ui/react-tooltip": "latest",
-    "@tailwindcss/postcss": "^4.1.17",
+    "@tailwindcss/postcss": "^4.1.18",
     "@tanstack/react-query": "^5.90.12",
     "axios": "^1.13.2",
     "class-variance-authority": "^0.7.1",
@@ -47,8 +49,8 @@
     "input-otp": "latest",
     "jspdf": "^3.0.4",
     "jspdf-autotable": "^5.0.2",
-    "lucide-react": "^0.556.0",
-    "next": "16.0.8",
+    "lucide-react": "^0.562.0",
+    "next": "16.1.1",
     "next-themes": "latest",
     "react": "18.3.1",
     "react-day-picker": "latest",
@@ -57,23 +59,25 @@
     "react-resizable-panels": "latest",
     "react-select": "^5.10.2",
     "recharts": "latest",
+    "sonar-scanner": "^3.1.0",
     "sonner": "latest",
-    "swr": "^2.3.7",
+    "swr": "^2.3.8",
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "latest"
   },
   "devDependencies": {
-    "@types/node": "^24",
-    "@types/react": "18.3.12",
-    "@types/react-dom": "18.3.1",
-    "@typescript-eslint/parser": "8.49.0",
+    "@types/node": "^25",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@typescript-eslint/parser": "8.50.1",
     "autoprefixer": "^10",
-    "eslint": "^9.39.1",
-    "eslint-config-next": "16.0.8",
+    "dotenv-cli": "^11.0.0",
+    "eslint": "^9.39.2",
+    "eslint-config-next": "16.1.1",
     "eslint-plugin-react-hooks": "7.0.1",
     "postcss": "^8.5",
-    "tailwindcss": "^4.1.17",
+    "tailwindcss": "^4.1.18",
     "typescript": "^5.9.3"
   }
 }

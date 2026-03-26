@@ -21,21 +21,71 @@ export const generateOutstandingPaymentsPDF = (
 
     // Summary
     if (data.summary) {
-        const overdueCount = data.outstanding_tasks?.filter(
-            (task: any) => task.days_overdue > 0
-        ).length ?? 0;
-
         const summaryData: [string, string][] = [
             ["Total Outstanding", formatCurrency(data.summary.total_outstanding)],
             ["Total Tasks", data.summary.task_count?.toString() || "0"],
             ["Average Balance", formatCurrency(data.summary.average_balance)],
-            ["Overdue Tasks", overdueCount.toString()],
         ];
 
         yPosition = addSummaryTable(pdf, summaryData, yPosition, PDF_COLORS.financial.primary);
     }
 
-    // Outstanding Tasks Table
+    // PDF specific export with Top/Bottom 20
+    if (data.pdf_data) {
+        // Table 1: Highest Outstanding Balances
+        yPosition = addSectionHeader(pdf, "Highest Outstanding Balances (Top 20)", yPosition);
+
+        const top20Data = data.pdf_data.top_20.map((task: any) => [
+            task.task_id,
+            task.customer_name,
+            task.customer_phone,
+            formatCurrency(task.total_cost),
+            formatCurrency(task.paid_amount),
+            formatCurrency(task.outstanding_balance),
+            task.workshop_status || '-',
+        ]);
+
+        autoTable(pdf, {
+            head: [["Task ID", "Customer", "Phone", "Total Cost", "Paid Amount", "Outstanding", "Status"]],
+            body: top20Data,
+            startY: yPosition,
+            theme: "grid",
+            headStyles: { fillColor: PDF_COLORS.danger },
+            margin: { left: 20, right: 20 },
+            styles: { fontSize: 7 },
+            pageBreak: "auto",
+        });
+
+        yPosition = getLastTableY(pdf, 15);
+
+        // Table 2: Lowest Outstanding Balances
+        yPosition = addSectionHeader(pdf, "Lowest Outstanding Balances (Last 20)", yPosition);
+
+        const bottom20Data = data.pdf_data.bottom_20.map((task: any) => [
+            task.task_id,
+            task.customer_name,
+            task.customer_phone,
+            formatCurrency(task.total_cost),
+            formatCurrency(task.paid_amount),
+            formatCurrency(task.outstanding_balance),
+            task.workshop_status || '-',
+        ]);
+
+        autoTable(pdf, {
+            head: [["Task ID", "Customer", "Phone", "Total Cost", "Paid Amount", "Outstanding", "Status"]],
+            body: bottom20Data,
+            startY: yPosition,
+            theme: "grid",
+            headStyles: { fillColor: PDF_COLORS.operational.primary }, // Use distinct color for contrast
+            margin: { left: 20, right: 20 },
+            styles: { fontSize: 7 },
+            pageBreak: "auto",
+        });
+
+        return;
+    }
+
+    // Fallback / Standard Outstanding Tasks Table (e.g. if paginated view is passed directly)
     if (data.outstanding_tasks?.length > 0) {
         yPosition = addSectionHeader(pdf, "Outstanding Payments Details", yPosition);
 
@@ -43,15 +93,13 @@ export const generateOutstandingPaymentsPDF = (
             task.task_id,
             task.customer_name,
             task.customer_phone,
-            formatCurrency(task.total_cost),
-            formatCurrency(task.paid_amount),
             formatCurrency(task.outstanding_balance),
-            `${task.days_overdue} days`,
             task.status,
+            task.workshop_status || '-',
         ]);
 
         autoTable(pdf, {
-            head: [["Task ID", "Customer", "Phone", "Total Cost", "Paid", "Outstanding", "Days Overdue", "Status"]],
+            head: [["Task ID", "Customer", "Phone", "Outstanding", "Status", "Device Status"]],
             body: tasksData,
             startY: yPosition,
             theme: "grid",
@@ -98,7 +146,7 @@ export const generatePaymentMethodsPDF = (
         ["Total Expenditure", formatCurrency(summary.total_expenditure)],
         ["Net Revenue", formatCurrency(summary.net_revenue)],
         ["Total Payments", summary.total_payments?.toString() || "0"],
-        ["Date Range", summary.date_range ? summary.date_range.replace(/_/g, " ") : "Last 30 Days"],
+        ["Date Range", summary.date_range ? summary.date_range.replaceAll('_', " ") : "Last 30 Days"],
     ];
 
     yPosition = addSummaryTable(pdf, summaryData, yPosition, PDF_COLORS.operational.primary);
@@ -111,7 +159,7 @@ export const generatePaymentMethodsPDF = (
         yPosition += 10;
 
         const revenueData = data.revenue_methods.map((method: any) => [
-            method.method_name?.replace(/-/g, " ") || "Unknown",
+            method.method_name?.replaceAll('-', " ") || "Unknown",
             formatCurrency(method.total_amount),
             method.payment_count?.toString() || "0",
             formatCurrency(method.average_payment),
@@ -138,7 +186,7 @@ export const generatePaymentMethodsPDF = (
         yPosition += 10;
 
         const expenditureData = data.expenditure_methods.map((method: any) => [
-            method.method_name?.replace(/-/g, " ") || "Unknown",
+            method.method_name?.replaceAll('-', " ") || "Unknown",
             formatCurrency(method.total_amount),
             method.payment_count?.toString() || "0",
             formatCurrency(method.average_payment),

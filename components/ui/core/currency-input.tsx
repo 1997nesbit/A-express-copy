@@ -23,9 +23,9 @@ const CurrencyInput = React.forwardRef<
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { value: inputValue } = event.target
-    const numericValue = Number(inputValue.replace(/[^0-9]/g, ""))
+    const numericValue = Number(inputValue.replaceAll(/\D/g, ""))
 
-    if (!isNaN(numericValue)) {
+    if (!Number.isNaN(numericValue)) {
       onValueChange(numericValue)
     }
   }

@@ -18,12 +18,13 @@ import {
   Clock,
   Lock,
   Activity,
+  MessageSquare,
+  Plus,
 } from "lucide-react"
-import { useAuth } from "@/lib/auth-context"
+import { useAuth } from "@/hooks/use-auth"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/feedback/dialog";
-import ManagePaymentMethodsDialog from "../payments/manage-payment-methods-dialog";
-import ManagePaymentCategoriesDialog from "../payments/manage-payment-categories-dialog";
-import { Plus } from "lucide-react";
+import ManagePaymentMethodsDialog from "../financials/payments/manage-payment-methods-dialog";
+import ManagePaymentCategoriesDialog from "../financials/payments/manage-payment-categories-dialog";
 import { useState } from "react";
 
 interface SettingCard {
@@ -59,9 +60,17 @@ const settingsCategories: SettingCard[] = [
   {
     id: "notifications",
     title: "Notification Settings",
-    description: "Configure email alerts, SMS notifications, and system alerts",
+    description: "Manage toast notification visibility and sound preferences per category",
     icon: Bell,
     href: "/dashboard/settings/notifications",
+    managerAccess: true,
+  },
+  {
+    id: "messaging",
+    title: "Messaging Settings",
+    description: "Configure SMS triggers, template values, and messaging behavior",
+    icon: MessageSquare,
+    href: "/dashboard/settings/messaging",
     managerAccess: true,
   },
   {
@@ -155,7 +164,16 @@ export function SettingsOverview() {
   })
 
   const handleNavigate = (href: string) => {
-    window.location.href = href
+    globalThis.location.href = href
+  }
+
+  let accessLevelText: string
+  if (isAdmin) {
+    accessLevelText = "You have full administrative access to all settings."
+  } else if (isManager) {
+    accessLevelText = "You have manager-level access to most settings."
+  } else {
+    accessLevelText = "You have limited access to settings based on your role."
   }
 
   return (
@@ -177,11 +195,7 @@ export function SettingsOverview() {
             <div>
               <p className="font-medium text-blue-900">Access Level: {user?.role}</p>
               <p className="text-sm text-blue-700">
-                {isAdmin
-                  ? "You have full administrative access to all settings."
-                  : isManager
-                    ? "You have manager-level access to most settings."
-                    : "You have limited access to settings based on your role."}
+                {accessLevelText}
               </p>
             </div>
           </div>

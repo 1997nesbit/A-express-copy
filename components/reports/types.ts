@@ -14,7 +14,7 @@ export interface PaginationInfo {
     total_pages: number;
     has_next: boolean;
     has_previous: boolean;
-    
+
 }
 
 // ==========================================
@@ -35,12 +35,14 @@ export interface TaskDetail {
     estimated_cost: number;
     total_cost?: number;
     paid_amount?: number;
-    // Turnaround specific fields
-    intake_date?: string;
-    intake_time?: string;
-    pickup_date?: string;
-    pickup_time?: string;
-    turnaround_days?: number;
+    // Execution specific fields
+    execution_start?: string;
+    execution_end?: string;
+    execution_hours?: number;
+    workshop_hours?: number; // NEW
+    technicians?: string;
+    technician_count?: number;
+    return_count?: number;
 }
 
 export interface CompletedTaskDetail {
@@ -59,6 +61,7 @@ export interface OutstandingTask {
     outstanding_balance: number;
     days_overdue: number;
     status: string;
+    workshop_status?: string;
     date_in: string;
 }
 
@@ -166,21 +169,26 @@ export interface TaskStatusReport {
     top_models?: { laptop_model: string; count: number }[];
 }
 
-export interface TurnaroundTimeReport {
+export interface TaskExecutionReport {
     periods?: {
         period: string;
-        average_turnaround: number;
+        average_execution_hours: number;
+        average_workshop_hours: number; // NEW
+        workshop_count: number;         // NEW
         tasks_completed: number;
     }[];
     task_details?: TaskDetail[];
     summary?: {
-        overall_average: number;
-        best_period: string;
-        improvement: number;
+        overall_average_hours: number;
+        overall_average_workshop_hours: number; // NEW
+        fastest_task_hours: number;
+        slowest_task_hours: number;
+        top_5_fastest?: TaskDetail[]; // NEW
+        top_5_slowest?: TaskDetail[]; // NEW
         total_tasks_analyzed: number;
-        total_returns?: number;
-        tasks_with_returns?: number;
-        avg_returns_per_task?: number;
+        total_tasks_workshop: number; // NEW
+        total_returns: number;
+        tasks_with_returns: number;
     };
     date_range?: string;
     duration_info?: {
@@ -235,13 +243,23 @@ export interface TechnicianPerformance {
     technician_name: string;
     technician_email: string;
     completed_tasks_count: number;
+    solved_count?: number;
+    not_solved_count?: number;
+    solve_rate?: number;
     total_revenue_generated?: number;
     avg_completion_hours: number;
     current_in_progress_tasks?: number;
+    in_progress_count?: number;
+    in_workshop_count?: number;
     current_assigned_tasks: number;
     tasks_sent_to_workshop?: number;
     workshop_rate?: number;
     percentage_of_tasks_involved?: number;
+    rank?: number;
+    percentile?: number;
+    rank_by_solve_rate?: number;
+    rank_by_avg_time?: number | null;
+    rank_by_workshop_rate?: number;
     tasks_by_status: {
         [status: string]: TaskDetail[];
     };
@@ -305,8 +323,10 @@ export interface FrontDeskPerformanceData {
     user_name: string;
     approved_count: number;
     sent_out_count: number;
+    created_count: number;
     approved_percentage: number;
     sent_out_percentage: number;
+    created_percentage: number;
 }
 
 export interface FrontDeskPerformanceReport {
@@ -314,6 +334,7 @@ export interface FrontDeskPerformanceReport {
     summary: {
         total_approved: number;
         total_sent_out: number;
+        total_created: number;
         start_date: string;
         end_date: string;
     };

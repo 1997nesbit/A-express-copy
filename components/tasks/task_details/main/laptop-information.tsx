@@ -6,11 +6,9 @@ import { Input } from "@/components/ui/core/input"
 import { Label } from "@/components/ui/core/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/core/select"
 import { Laptop, Edit, User, MapPin } from "lucide-react"
-import { useAuth } from "@/lib/auth-context"
-import { updateTask } from "@/lib/api-client"
-import { useTask, useBrands } from "@/hooks/use-data"
-import { useModels } from "@/hooks/use-models"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useAuth } from "@/hooks/use-auth"
+import { useTask, useUpdateTask } from "@/hooks/use-tasks"
+import { useBrands, useModels } from "@/hooks/use-brands-models"
 import { SetStateAction, useState } from "react"
 import { SimpleCombobox } from "@/components/ui/core/combobox"
 
@@ -18,25 +16,19 @@ interface LaptopInformationProps {
   taskId: string
 }
 
-export default function LaptopInformation({ taskId }: LaptopInformationProps) {
+export default function LaptopInformation({ taskId }: Readonly<LaptopInformationProps>) {
   const { user } = useAuth()
-  const queryClient = useQueryClient()
-  const { data: taskData, isLoading, isError, error } = useTask(taskId)
+  const { data: taskData, isLoading, isError } = useTask(taskId)
   const { data: brands } = useBrands()
   const [modelSearch, setModelSearch] = useState("")
   const { data: models, isLoading: isLoadingModels } = useModels({ query: modelSearch })
   const [isEditingLaptop, setIsEditingLaptop] = useState(false)
   const modelOptions = models ? models.filter((m: any) => m?.name).map((m: any) => ({ label: m.name, value: m.name })) : []
 
-  const updateTaskMutation = useMutation({
-    mutationFn: (updates: { [key: string]: any }) => updateTask(taskId, updates),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["task", taskId] })
-    },
-  })
+  const updateTaskMutation = useUpdateTask()
 
   const handleFieldUpdate = async (field: string, value: any) => {
-    updateTaskMutation.mutate({ [field]: value })
+    updateTaskMutation.mutate({ id: taskId, updates: { [field]: value } })
   }
 
   const isAdmin = user?.role === "Administrator"
@@ -83,7 +75,7 @@ export default function LaptopInformation({ taskId }: LaptopInformationProps) {
               <div className="flex gap-2">
                 <Select
                   value={taskData.brand?.toString() || ""}
-                  onValueChange={value => handleFieldUpdate("brand", parseInt(value, 10))}
+                  onValueChange={value => handleFieldUpdate("brand", Number.parseInt(value, 10))}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select a brand" />
@@ -120,7 +112,7 @@ export default function LaptopInformation({ taskId }: LaptopInformationProps) {
             <Label className="text-sm font-medium text-gray-600">Current Location</Label>
             <div className="flex items-center gap-2 mt-1">
               <MapPin className="h-4 w-4 text-gray-400" />
-              <span className="text-gray-900">{taskData.current_location}</span>
+              <span className="text-gray-900">{taskData.current_location_name}</span>
             </div>
           </div>
           <div>

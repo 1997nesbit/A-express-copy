@@ -9,9 +9,28 @@ router.register(
     r"payment-categories", views.PaymentCategoryViewSet, basename="payment-category"
 )
 router.register(r"payments", views.PaymentViewSet, basename="payment")
+# New unified endpoint
+router.register(
+    r"transaction-requests",
+    views.TransactionRequestViewSet,
+    basename="transaction-request",
+)
+# Debt requests endpoint
+router.register(
+    r"debt-requests",
+    views.DebtRequestViewSet,
+    basename="debt-request",
+)
+# Unified approval requests (read-only, shows both transaction and debt requests)
+router.register(
+    r"unified-approval-requests",
+    views.UnifiedApprovalRequestViewSet,
+    basename="unified-approval-request",
+)
+# Backwards compatibility - same viewset, different URL
 router.register(
     r"expenditure-requests",
-    views.ExpenditureRequestViewSet,
+    views.TransactionRequestViewSet,
     basename="expenditure-request",
 )
 router.register(
@@ -24,5 +43,11 @@ urlpatterns = [
         "financial-summary/",
         views.FinancialSummaryView.as_view(),
         name="financial-summary",
+    ),
+    # Accountant Dashboard Stats
+    path(
+        "accountant-dashboard-stats/",
+        views.AccountantDashboardStats.as_view(),
+        name="accountant-dashboard-stats",
     ),
 ]

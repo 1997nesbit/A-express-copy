@@ -2,11 +2,43 @@ import django_filters
 from .models import Task
 from financials.models import Payment
 from django.utils import timezone
+from django.db.models import Q
+
+_PICKED_UP = 'Picked Up'
 
 class TaskFilter(django_filters.FilterSet):
     created_at = django_filters.DateFromToRangeFilter()
     updated_at = django_filters.DateFromToRangeFilter()
     status = django_filters.CharFilter(method='filter_status')
+
+    activity_user = django_filters.NumberFilter(method='filter_activity_user')
+    
+    # For messaging compose view: filter by template type
+    template_filter = django_filters.CharFilter(method='filter_by_template')
+    
+    # Search by customer name, phone, task title
+    search = django_filters.CharFilter(method='search_filter')
+    
+    # For accountant tasks page: filter unpaid tasks
+    unpaid_tasks = django_filters.BooleanFilter(method='filter_unpaid_tasks')
+    
+    # For workshop technicians: combined view of assigned tasks OR workshop tasks
+    # Takes user_id as a separate parameter to avoid conflict with assigned_to filter
+    workshop_tech_user = django_filters.NumberFilter(method='filter_workshop_tech_view')
+
+    # New filters for server-side filtering
+    urgency = django_filters.CharFilter(lookup_expr='iexact')
+    current_location = django_filters.CharFilter(field_name='current_location__name', lookup_expr='iexact')
+    location = django_filters.CharFilter(field_name='current_location__name', lookup_expr='iexact') # Alias for convenience
+    workshop_status = django_filters.CharFilter(lookup_expr='iexact')
+    # Use 'assigned_to' for direct ID filtering, which is the default behavior if we don't override it.
+    # But let's add an explicit alias 'technician' that maps to assigned_to__id for clarity if needed, 
+    # though standard 'assigned_to' is effectively ID based in DjangoFilter for FK.
+    # Ideally frontend should send 'assigned_to' with the ID. 
+    technician = django_filters.NumberFilter(field_name='assigned_to__id')
+
+    # Filter to exclude specific statuses (comma separated)
+    exclude_status = django_filters.CharFilter(method='filter_exclude_status')
 
     class Meta:
         model = Task
@@ -15,13 +47,72 @@ class TaskFilter(django_filters.FilterSet):
             'customer': ['exact'],
             'created_by': ['exact'],
             'is_debt': ['exact'],
-            'workshop_technician': ['exact'],
             'workshop_status': ['exact', 'in'],
+            'payment_status': ['exact'],
         }
 
     def filter_status(self, queryset, name, value):
         statuses = value.split(',')
         return queryset.filter(status__in=statuses)
+
+    def filter_exclude_status(self, queryset, name, value):
+        statuses = value.split(',')
+        return queryset.exclude(status__in=statuses)
+
+    def filter_activity_user(self, queryset, name, value):
+        return queryset.filter(activities__user_id=value).distinct()
+    
+    def filter_by_template(self, queryset, name, value):
+        """
+        Filter tasks based on template type for bulk messaging.
+        """
+        if value == 'ready_for_pickup':
+            return queryset.filter(status='Ready for Pickup')
+        elif value == 'repair_in_progress':
+            # Exclude finished statuses
+            finished_statuses = ['Ready for Pickup', _PICKED_UP, 'Completed', 'Terminated', 'Cancelled']
+            return queryset.exclude(status__in=finished_statuses)
+        elif value == 'debt_reminder':
+            return queryset.filter(is_debt=True, status=_PICKED_UP)
+        return queryset
+    
+    def search_filter(self, queryset, name, value):
+        """
+        Search by customer name, phone number, or task title.
+        """
+        return queryset.filter(
+            Q(customer__name__icontains=value) |
+            Q(customer__phone_numbers__phone_number__icontains=value) |
+            Q(title__icontains=value)
+        ).distinct()
+    
+    def filter_unpaid_tasks(self, queryset, name, value):
+        """
+        Filter tasks that have outstanding payments and are not terminated.
+        Includes picked-up tasks since a customer may have left without full payment.
+        Uses the payment_status field which is kept in sync by the model.
+        """
+        if value:
+            return queryset.exclude(
+                payment_status='Fully Paid'
+            ).exclude(
+                status='Terminated'
+            )
+        return queryset
+    
+    def filter_workshop_tech_view(self, queryset, name, value):
+        """
+        Filter for workshop technicians who need to see:
+        1. Tasks assigned to them directly
+        2. OR tasks currently in the workshop (workshop_status = 'In Workshop')
+        
+        The 'value' parameter IS the user ID (not a boolean).
+        """
+        if value:
+            return queryset.filter(
+                Q(assigned_to=value) | Q(workshop_status='In Workshop')
+            )
+        return queryset
 
 
 class PaymentFilter(django_filters.FilterSet):

@@ -35,16 +35,11 @@ sys.path.insert(0, str(PROJECT_ROOT))
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get("SECRET_KEY")
 if not SECRET_KEY:
-    # Allow a development-only fallback when DEBUG would be True
-    if os.environ.get("DEBUG", "False").lower() in ("true", "1", "yes"):
-        SECRET_KEY = "dev-only-insecure-key-do-not-use-in-production"
-    else:
-        from django.core.exceptions import ImproperlyConfigured
-
-        raise ImproperlyConfigured(
-            "The SECRET_KEY environment variable is required. "
-            "Set it in your environment or .env file."
-        )
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured(
+        "The SECRET_KEY environment variable is required. "
+        "Set it in your environment or .env file."
+    )
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get("DEBUG", "False").lower() in ("true", "1", "yes")
@@ -111,6 +106,7 @@ CSRF_TRUSTED_ORIGINS = [
     "https://127.0.0.1:8000",
     "https://*.app.github.dev",
     "https://*.railway.app",
+    "https://*.railway.internal"
 ]
 if FRONTEND_URL.startswith("https://"):
     CSRF_TRUSTED_ORIGINS.append(FRONTEND_URL)
@@ -139,6 +135,7 @@ _USE_CLOUDINARY = bool(_CLOUDINARY_URL)
 
 
 INSTALLED_APPS = [
+    "daphne",  # ASGI server for Django Channels (must be before django apps)
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -146,7 +143,8 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     # For media-only Cloudinary use, cloudinary_storage comes AFTER staticfiles
-    *(["cloudinary_storage", "cloudinary"] if _USE_CLOUDINARY else []),
+    *(['cloudinary_storage', 'cloudinary'] if _USE_CLOUDINARY else []),
+    "channels",  # Django Channels for WebSocket support
     "corsheaders",
     "axes",  # Brute-force protection
     "users",
@@ -155,11 +153,20 @@ INSTALLED_APPS = [
     "common",
     "customers",
     "rest_framework",
+    "drf_spectacular",  # OpenAPI schema generation
     "reports",
-    "django_extensions",
+    "messaging",  # SMS messaging via Briq
+    "settings",  # System settings
+    "notifications",  # WebSocket notifications
+    'django_extensions',
+    'django_apscheduler',  # Background task scheduling
+    # Debug tools - only enabled in development
+    *(['debug_toolbar', 'silk'] if DEBUG else []),
 ]
 
 MIDDLEWARE = [
+    # Debug tools - only in development
+    *(['debug_toolbar.middleware.DebugToolbarMiddleware'] if DEBUG else []),
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",  # Serve static files in production
@@ -167,6 +174,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    *(['silk.middleware.SilkyMiddleware'] if DEBUG else []),  # Silk profiling (after auth)
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "axes.middleware.AxesMiddleware",  # Account lockout after failed attempts
@@ -191,23 +199,94 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "A_express.wsgi.application"
+ASGI_APPLICATION = "A_express.asgi.application"
+
+# Channel Layers for WebSocket support
+# InMemoryChannelLayer for single-instance deployment
+# Switch to Redis if scaling to multiple instances
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379')],
+        },
+    } if os.environ.get('REDIS_URL') else {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    }
+}
 
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 # Use DATABASE_URL from Railway if available
-DATABASE_URL = os.environ.get("DATABASE_URL")
+# Support for PgBouncer: If PGBOUNCER_URL is set, use it instead for better connection pooling
+_PGBOUNCER_RAW = os.environ.get("PGBOUNCER_URL", "")
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
-if DATABASE_URL:
-    # Production: Use PostgreSQL from Railway
+def _build_pgbouncer_url(pgbouncer_raw, database_url):
+    """
+    Build a proper PgBouncer connection URL.
+    
+    PGBOUNCER_URL can be:
+    1. A full URL: postgresql://user:pass@host:port/db  -> use as-is
+    2. Just hostname: pgbouncer.railway.internal         -> swap host in DATABASE_URL
+    3. Hostname:port: pgbouncer.railway.internal:6432    -> swap host+port in DATABASE_URL
+    """
+    if not pgbouncer_raw:
+        return ""
+    
+    # If it already has a scheme, it's a full URL - use as-is
+    if pgbouncer_raw.startswith("postgres://") or pgbouncer_raw.startswith("postgresql://"):
+        return pgbouncer_raw
+    
+    # It's just a hostname (or host:port) - construct URL from DATABASE_URL
+    if not database_url:
+        print("[DB CONFIG] WARNING: PGBOUNCER_URL is a hostname but DATABASE_URL is not set!")
+        print("[DB CONFIG] Set PGBOUNCER_URL to a full URL like: postgresql://user:pass@host:port/dbname")
+        return ""
+    
+    from urllib.parse import urlparse, urlunparse
+    parsed = urlparse(database_url)
+    
+    # Parse host:port from pgbouncer value
+    if ":" in pgbouncer_raw:
+        new_host, new_port = pgbouncer_raw.rsplit(":", 1)
+    else:
+        new_host = pgbouncer_raw
+        new_port = "6432"  # Default PgBouncer port
+    
+    # Replace host and port in the original DATABASE_URL
+    new_netloc = f"{parsed.username}:{parsed.password}@{new_host}:{new_port}" if parsed.password else f"{parsed.username}@{new_host}:{new_port}"
+    rebuilt = urlunparse((parsed.scheme, new_netloc, parsed.path, parsed.params, parsed.query, parsed.fragment))
+    print(f"[DB CONFIG] Built PgBouncer URL from DATABASE_URL with host={new_host}, port={new_port}")
+    return rebuilt
+
+PGBOUNCER_URL = _build_pgbouncer_url(_PGBOUNCER_RAW, DATABASE_URL)
+
+# Prefer PgBouncer for connection pooling if available
+ACTIVE_DB_URL = PGBOUNCER_URL if PGBOUNCER_URL else DATABASE_URL
+
+# DEBUG: Log which database URL is being used
+print(f"[DB CONFIG] PGBOUNCER_URL raw: {_PGBOUNCER_RAW[:50] if _PGBOUNCER_RAW else 'None'}")
+print(f"[DB CONFIG] PGBOUNCER_URL resolved: {bool(PGBOUNCER_URL)}")
+print(f"[DB CONFIG] DATABASE_URL set: {bool(DATABASE_URL)}")
+print(f"[DB CONFIG] Using: {'PgBouncer' if PGBOUNCER_URL else 'Direct PostgreSQL'}")
+
+if ACTIVE_DB_URL:
+    # Production: Use PostgreSQL (via PgBouncer if PGBOUNCER_URL is set)
+    # Use dj_database_url.parse() to explicitly parse the URL we provide
     DATABASES = {
-        "default": dj_database_url.config(
-            default=DATABASE_URL,
-            conn_max_age=600,
+        "default": dj_database_url.parse(
+            ACTIVE_DB_URL,
+            # Disable Django's connection pooling when using PgBouncer (conn_max_age=0)
+            # Otherwise use 10-minute pooling for direct PostgreSQL connections
+            conn_max_age=0 if PGBOUNCER_URL else 600,
             conn_health_checks=True,
         )
     }
+    print(f"[DB CONFIG] Parsed ENGINE: {DATABASES['default'].get('ENGINE', 'MISSING')}")
+    print(f"[DB CONFIG] Parsed HOST: {DATABASES['default'].get('HOST', 'MISSING')}")
 else:
     # Local development: Try MySQL, fallback to SQLite
     try:
@@ -243,6 +322,24 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",  # Fallback for testing
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+# drf-spectacular: OpenAPI / Swagger configuration
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'A-Express Technologies API',
+    'DESCRIPTION': (
+        'REST + WebSocket API for A-Express Technologies laptop repair shop management system. '
+        'Authentication uses HttpOnly cookie-based JWT (access_token / refresh_token cookies).'
+    ),
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
+    'SECURITY': [
+        {'cookieAuth': []},
+        {'jwtAuth': []},
+    ],
+    'EXTENSIONS_INFO': {},
 }
 
 # JWT Settings - Access token 15 min for security, silent refresh handles UX
@@ -332,7 +429,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = "UTC"
+TIME_ZONE = "Africa/Dar_es_Salaam"
 
 USE_I18N = True
 
@@ -364,3 +461,24 @@ AXES_LOCKOUT_PARAMETERS = ["username", "ip_address"]  # Lock by username+IP comb
 AXES_RESET_ON_SUCCESS = True  # Reset counter on successful login
 AXES_LOCKOUT_CALLABLE = None  # Use default lockout response
 AXES_VERBOSE = False  # Don't log to console in production
+
+# =============================================================================
+# Briq SMS API Configuration
+# =============================================================================
+# Get your API key from: https://briq.tz/login
+BRIQ_API_KEY = os.environ.get('BRIQ_API_KEY', '')
+BRIQ_SENDER_ID = os.environ.get('BRIQ_SENDER_ID', 'A-EXPRESS')
+
+# =============================================================================
+# APScheduler Configuration
+# =============================================================================
+APSCHEDULER_DATETIME_FORMAT = "N j, Y, f:s a"
+APSCHEDULER_RUN_NOW_TIMEOUT = 25  # Seconds
+
+# =============================================================================
+# Django Debug Toolbar Configuration
+# =============================================================================
+INTERNAL_IPS = [
+    '127.0.0.1',
+]
+

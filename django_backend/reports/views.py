@@ -75,7 +75,7 @@ def get_report_field_options(request):
             {
                 "id": "operational",
                 "label": "Operational Metrics",
-                "description": "Task status, turnaround times, efficiency",
+                "description": "Task status, execution times, efficiency",
             },
             {
                 "id": "performance",
@@ -97,8 +97,8 @@ def get_report_field_options(request):
             {"id": "date_in", "label": "Date In", "category": "dates"},
             {"id": "date_completed", "label": "Date Completed", "category": "dates"},
             {
-                "id": "turnaround_time",
-                "label": "Turnaround Time",
+                "id": "task_execution",
+                "label": "Task Execution",
                 "category": "performance",
             },
             {"id": "total_cost", "label": "Total Cost", "category": "financial"},
@@ -165,21 +165,21 @@ def get_technician_performance(request):
     [permissions.IsAuthenticated, IsAdminOrManagerOrFrontDeskOrAccountant]
 )
 @api_view_try_except
-def get_turnaround_time(request):
-    """Get turnaround time report with date range and pagination support"""
+def get_task_execution(request):
+    """Get task execution report with date range and pagination support"""
     date_range = request.GET.get("date_range", "last_30_days")
     start_date = request.GET.get("start_date")
     end_date = request.GET.get("end_date")
-    period_type = request.GET.get("period_type", "weekly")
+    period_type = request.GET.get("period_type")
     page = int(request.GET.get("page", 1))
     page_size = int(request.GET.get("page_size", 10))
 
-    report_data = PredefinedReportGenerator.generate_turnaround_time_report(
+    report_data = PredefinedReportGenerator.generate_task_execution_report(
         period_type, date_range, start_date, end_date, page, page_size
     )
     
     return Response(
-        {"success": True, "report": report_data, "type": "turnaround_time"}
+        {"success": True, "report": report_data, "type": "task_execution"}
     )
 
 
@@ -244,8 +244,6 @@ def get_dashboard_data(request):
 
 
     # Average repair time - simplified placeholder
-    avg_repair_time = "3.2 days"  # Could be calculated from latest_pickup_at - date_in
-
     kpi_data = {
         "totalActiveTasks": total_active_tasks,
         "revenueThisMonth": float(revenue_this_month),
@@ -294,12 +292,76 @@ def get_outstanding_payments(request):
     page = int(request.GET.get("page", 1))
     page_size = int(request.GET.get("page_size", 10))
 
+    search_query = request.GET.get("search")
+    pdf_export = request.GET.get("pdf_export") == 'true'
+
     report_data = PredefinedReportGenerator.generate_outstanding_payments_report(
-        date_range, start_date, end_date, page, page_size
+        date_range, start_date, end_date, page, page_size, search_query, pdf_export
     )
     
     return Response({
         "success": True, 
         "report": report_data, 
         "type": "outstanding_payments"
+    })
+
+
+def _serialize_print_task(t):
+    return {
+        "task_title": t.title,
+        "customer_name": t.customer.name if t.customer else "N/A",
+        "brand": t.brand.name if t.brand else "N/A",
+        "laptop_model": str(t.laptop_model) if t.laptop_model else "N/A",
+        "location": t.current_location.name if t.current_location else "N/A",
+        "status": t.status or "N/A",
+        "workshop_status": t.workshop_status or "N/A",
+        "technician": t.assigned_to.get_full_name() if t.assigned_to else "Unassigned",
+        "urgency": t.urgency or "N/A",
+        "is_debt": t.is_debt,
+    }
+
+
+@api_view(["GET"])
+@permission_classes([permissions.IsAuthenticated, IsAdminOrManagerOrFrontDeskOrAccountant])
+@api_view_try_except
+def get_print_tasks(request):
+    """Get a flat list of tasks for PDF printing, filtered by date range."""
+    start_date = request.GET.get("start_date")
+    end_date = request.GET.get("end_date")
+
+    if not start_date or not end_date:
+        return Response(
+            {"success": False, "error": "start_date and end_date are required."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    from reports.generators.base import ReportGeneratorBase
+
+    date_filter, _, duration_days, duration_desc, actual_start, actual_end = (
+        ReportGeneratorBase.get_date_filter(
+            start_date=start_date, end_date=end_date, field="date_in"
+        )
+    )
+
+    tasks = (
+        Task.objects.filter(date_filter)
+        .select_related("customer", "brand", "laptop_model", "current_location", "assigned_to")
+        .order_by("-date_in")
+    )
+
+    task_list = [_serialize_print_task(t) for t in tasks]
+
+    return Response({
+        "success": True,
+        "type": "print_tasks",
+        "report": {
+            "tasks": task_list,
+            "summary": {
+                "total_tasks": len(task_list),
+                "start_date": str(actual_start),
+                "end_date": str(actual_end),
+                "duration_days": duration_days,
+                "duration_description": duration_desc,
+            },
+        },
     })

@@ -4,7 +4,8 @@ import type React from "react"
 import { SidebarProvider, SidebarInset } from "@/components/ui/layout/sidebar"
 import { AppSidebar } from "@/components/dashboard/layouts/app-sidebar"
 import { DashboardHeader } from "@/components/dashboard/layouts/dashboard-header"
-import { useAuth } from "@/lib/auth-context"
+import { NotificationPreferencesProvider } from "@/components/provider/notification-preferences"
+import { useAuth } from "@/hooks/use-auth"
 import { useRouter } from "next/navigation"
 import { useEffect } from "react"
 
@@ -12,7 +13,7 @@ interface DashboardLayoutProps {
     children: React.ReactNode
 }
 
-export default function DashboardLayout({ children }: DashboardLayoutProps) {
+export default function DashboardLayout({ children }: Readonly<DashboardLayoutProps>) {
     const { isAuthenticated, isLoading } = useAuth()
     const router = useRouter()
 
@@ -35,12 +36,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     }
 
     return (
-        <SidebarProvider>
-            <AppSidebar />
-            <SidebarInset>
-                <DashboardHeader />
-                <main className="flex-1 overflow-auto">{children}</main>
-            </SidebarInset>
-        </SidebarProvider>
+        <NotificationPreferencesProvider>
+            <SidebarProvider>
+                <AppSidebar />
+                <SidebarInset>
+                    <DashboardHeader />
+                    <main className="flex-1 overflow-auto">{children}</main>
+                </SidebarInset>
+            </SidebarProvider>
+        </NotificationPreferencesProvider>
     )
 }
+
