@@ -46,7 +46,7 @@ function getBaseApiUrl() {
     }
   }
 
-  // 3. Fallback for local development (your machine)
+  // 3. Fallback for local development
   return "http://localhost:8000/api";
 }
 

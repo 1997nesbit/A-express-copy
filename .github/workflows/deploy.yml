@@ -1,0 +1,179 @@
+name: Deploy A-Express to VPS
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Check out your code from GitHub
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Set up SSH WITH DEBUGGING
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          
+          # Debug: Show key info
+          echo "=== DEBUG: Checking SSH Key ==="
+          echo "Key length: ${#VPS_SSH_KEY}"
+          echo "${{ secrets.VPS_SSH_KEY }}" | head -n 2
+          echo "=== END DEBUG ==="
+          
+          # Save key
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          
+          # Create config PROPERLY
+          cat > ~/.ssh/config << EOF
+          Host vps
+            HostName ${{ secrets.VPS_HOST }}
+            User ${{ secrets.VPS_USERNAME }}
+            IdentityFile ~/.ssh/id_rsa
+            StrictHostKeyChecking no
+            ConnectTimeout 10
+          EOF
+          
+          chmod 600 ~/.ssh/config
+          
+          # Add to known_hosts
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+          
+          # Test the key
+          echo "Testing SSH key format..."
+          ssh-keygen -l -f ~/.ssh/id_rsa || echo "Key format issue"
+
+      # 2.5 TEST SSH CONNECTION FIRST
+      - name: Test SSH Connection
+        run: |
+          echo "Testing SSH connection..."
+          ssh -v vps "echo '✅ SSH Connected!'; whoami; pwd" || echo "❌ SSH failed"
+
+      # 3. Deploy to VPS
+      - name: Deploy to VPS
+        run: |
+          ssh vps "cd /home/aexpress && git pull origin main"
+          
+      # 4. Deploy Django Backend
+      - name: Deploy Django Backend
+        run: |
+          ssh vps "
+            cd /home/aexpress/django_backend
+            source venv/bin/activate
+            pip install -r requirements.txt
+            python manage.py migrate
+            python manage.py collectstatic --noinput
+          "
+          
+      # 5. Deploy Next.js Frontend
+      - name: Deploy Next.js Frontend
+        run: |
+          ssh vps "
+            cd /home/aexpress
+            export PATH=\"/usr/local/nodejs20/bin:\$PATH\"
+            
+            echo '=== Rebuilding native modules ==='
+            # Rebuild native modules for current platform
+            npm rebuild
+            
+            echo '=== Installing dependencies ==='
+            npm install 
+            
+            echo '=== Building Next.js ==='
+            npm run build
+          "
+          
+      - name: Restart Services
+        run: |
+          ssh vps "
+            export PATH=\"/usr/local/nodejs20/bin:\$PATH\"
+            cd /home/aexpress
+            
+            # Check if ecosystem.config.js exists
+            if [ -f ecosystem.config.js ]; then
+              echo 'Restarting with ecosystem.config.js...'
+              pm2 restart ecosystem.config.js
+            else
+              echo 'ecosystem.config.js not found, restarting by name...'
+              pm2 restart aexpress-backend aexpress-frontend
+            fi
+            
+            echo 'PM2 status:'
+            pm2 status
+          "
+          
+      # 7. Verify Deployment
+# 7. Verify Deployment
+      - name: Verify deployment
+        run: |
+          sleep 10
+          
+          echo "=========================================="
+          echo "🔍 DEPLOYMENT VERIFICATION"
+          echo "=========================================="
+          
+          # Test Django API
+          echo -e "\n📦 BACKEND CHECKS:"
+          echo "Testing Django API endpoint..."
+          curl -s -w "\nHTTP Status: %{http_code}\n" \
+            -H "Accept: application/json" \
+            http://${{ secrets.VPS_HOST }}/api/auth/me/ || echo "API test failed (401 is OK if not logged in)"
+          
+          # Test backend location and status
+          echo -e "\n📍 BACKEND LOCATION & STATUS:"
+          ssh vps "
+            echo 'Current directory:' \$(pwd)
+            echo 'Django backend path:' \$(readlink -f /home/aexpress/django_backend)
+            echo 'Python version:' \$(source /home/aexpress/django_backend/venv/bin/activate && python --version)
+            echo 'Django status:' \$(curl -s http://localhost:8000/api/auth/me/ | head -c 100)
+          "
+          
+          # Test Frontend
+          echo -e "\n🎨 FRONTEND CHECKS:"
+          echo "Testing frontend endpoint..."
+          curl -s -w "\nHTTP Status: %{http_code}\n" \
+            -H "Accept: text/html" \
+            http://${{ secrets.VPS_HOST }}/ || echo "Frontend test failed"
+          
+          # Test frontend location and build
+          echo -e "\n📍 FRONTEND LOCATION & STATUS:"
+          ssh vps "
+            echo 'Frontend path:' \$(readlink -f /home/aexpress)
+            echo 'Node version:' \$(export PATH=\"/usr/local/nodejs20/bin:\$PATH\" && node --version)
+            echo 'Next.js version:' \$(cd /home/aexpress && npm list next 2>/dev/null | head -n 1)
+            echo 'Build directory exists:' \$(ls -la /home/aexpress/.next 2>/dev/null | head -n 3 || echo 'Not found')
+          "
+          
+          # Check User & System Info
+          echo -e "\n👤 USER & SYSTEM INFO:"
+          ssh vps "
+            echo 'Current user:' \$(whoami)
+            echo 'User home:' \$HOME
+            echo 'System uptime:' \$(uptime -p)
+            echo 'Disk usage:' \$(df -h /home | tail -n 1)
+            echo 'Memory usage:' \$(free -h | grep Mem)
+          "
+          
+          # Check PM2 Services
+          echo -e "\n⚙️  PM2 SERVICES STATUS:"
+          ssh vps "
+            export PATH=\"/usr/local/nodejs20/bin:\$PATH\"
+            pm2 status || echo 'PM2 not running'
+            pm2 list || echo 'No PM2 processes found'
+          "
+          
+          # Final connectivity test
+          echo -e "\n🌐 FINAL CONNECTIVITY TEST:"
+          ssh vps "
+            echo 'Can reach localhost:8000 (Django):' \$(curl -s http://localhost:8000/api/auth/me/ >/dev/null && echo '✅ YES' || echo '❌ NO')
+            echo 'Can reach localhost:3000 (Next.js):' \$(curl -s http://localhost:3000 >/dev/null && echo '✅ YES' || echo '❌ NO')
+          "
+          
+          echo -e "\n=========================================="
+          echo "✅ VERIFICATION COMPLETE"
+          

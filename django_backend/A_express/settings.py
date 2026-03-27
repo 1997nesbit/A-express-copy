@@ -35,11 +35,24 @@ sys.path.insert(0, str(PROJECT_ROOT))
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get("SECRET_KEY")
 if not SECRET_KEY:
+<<<<<<< HEAD
     from django.core.exceptions import ImproperlyConfigured
     raise ImproperlyConfigured(
         "The SECRET_KEY environment variable is required. "
         "Set it in your environment or .env file."
     )
+=======
+    # Allow a development-only fallback when DEBUG would be True
+    if os.environ.get("DEBUG", "False").lower() in ("true", "1", "yes"):
+        SECRET_KEY = "dev-only-insecure-key-do-not-use-in-production"
+    else:
+        from django.core.exceptions import ImproperlyConfigured
+
+        raise ImproperlyConfigured(
+            "The SECRET_KEY environment variable is required. "
+            "Set it in your environment or .env file."
+        )
+>>>>>>> upstream/main
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get("DEBUG", "False").lower() in ("true", "1", "yes")
@@ -47,6 +60,7 @@ DEBUG = os.environ.get("DEBUG", "False").lower() in ("true", "1", "yes")
 # Production security settings for data in transit
 if not DEBUG:
     # HTTP Strict Transport Security - force HTTPS for 1 year
+
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
@@ -54,13 +68,22 @@ if not DEBUG:
     # Railway uses a reverse proxy - trust X-Forwarded-Proto header
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
+<<<<<<< HEAD
     # DON'T redirect HTTP→HTTPS - Railway's proxy handles this
+=======
+    # DON'T redirect HTTPâ†’HTTPS - Railway's proxy handles this
+>>>>>>> upstream/main
     # Setting this to True causes redirect loops with Railway
     SECURE_SSL_REDIRECT = False
 
     # Secure cookies - only send over HTTPS
+<<<<<<< HEAD
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+=======
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+>>>>>>> upstream/main
 
     # Prevent browsers from guessing content types
     SECURE_CONTENT_TYPE_NOSNIFF = True
@@ -72,6 +95,7 @@ FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
+    "5.189.189.109",
     "healthcheck.railway.app",  # Railway healthcheck
     ".railway.app",  # All Railway subdomains
 ]
@@ -81,6 +105,8 @@ if RAILWAY_DOMAIN:
 # CORS settings for allowing frontend to access backend
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
+    "http://5.189.189.109:3000",
+    "https://5.189.189.109:3000",
     "http://127.0.0.1:3000",
 ]
 
@@ -105,6 +131,10 @@ CSRF_TRUSTED_ORIGINS = [
     "https://localhost:8000",
     "https://127.0.0.1:8000",
     "https://*.app.github.dev",
+    "http://5.189.189.109:3000",
+    "https://5.189.189.109:3000",
+    "http://5.189.189.109",
+    "https://5.189.189.109",
     "https://*.railway.app",
     "https://*.railway.internal"
 ]
@@ -143,7 +173,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     # For media-only Cloudinary use, cloudinary_storage comes AFTER staticfiles
-    *(['cloudinary_storage', 'cloudinary'] if _USE_CLOUDINARY else []),
+    *(["cloudinary_storage", "cloudinary"] if _USE_CLOUDINARY else []),
     "channels",  # Django Channels for WebSocket support
     "corsheaders",
     "axes",  # Brute-force protection
@@ -158,10 +188,15 @@ INSTALLED_APPS = [
     "messaging",  # SMS messaging via Briq
     "settings",  # System settings
     "notifications",  # WebSocket notifications
+<<<<<<< HEAD
     'django_extensions',
     'django_apscheduler',  # Background task scheduling
     # Debug tools - only enabled in development
     *(['debug_toolbar', 'silk'] if DEBUG else []),
+=======
+    "django_extensions",
+    "django_apscheduler",  # Background task scheduling
+>>>>>>> upstream/main
 ]
 
 MIDDLEWARE = [
@@ -205,14 +240,18 @@ ASGI_APPLICATION = "A_express.asgi.application"
 # InMemoryChannelLayer for single-instance deployment
 # Switch to Redis if scaling to multiple instances
 CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            'hosts': [os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379')],
-        },
-    } if os.environ.get('REDIS_URL') else {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer',
-    }
+    "default": (
+        {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [os.environ.get("REDIS_URL", "redis://127.0.0.1:6379")],
+            },
+        }
+        if os.environ.get("REDIS_URL")
+        else {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        }
+    )
 }
 
 
@@ -439,7 +478,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = "static/"
+# STATIC_URL = "static/"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -466,14 +505,15 @@ AXES_VERBOSE = False  # Don't log to console in production
 # Briq SMS API Configuration
 # =============================================================================
 # Get your API key from: https://briq.tz/login
-BRIQ_API_KEY = os.environ.get('BRIQ_API_KEY', '')
-BRIQ_SENDER_ID = os.environ.get('BRIQ_SENDER_ID', 'A-EXPRESS')
+BRIQ_API_KEY = os.environ.get("BRIQ_API_KEY", "")
+BRIQ_SENDER_ID = os.environ.get("BRIQ_SENDER_ID", "A-EXPRESS")
 
 # =============================================================================
 # APScheduler Configuration
 # =============================================================================
 APSCHEDULER_DATETIME_FORMAT = "N j, Y, f:s a"
 APSCHEDULER_RUN_NOW_TIMEOUT = 25  # Seconds
+<<<<<<< HEAD
 
 # =============================================================================
 # Django Debug Toolbar Configuration
@@ -482,3 +522,5 @@ INTERNAL_IPS = [
     '127.0.0.1',
 ]
 
+=======
+>>>>>>> upstream/main
