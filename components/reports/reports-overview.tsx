@@ -21,7 +21,11 @@ export function ReportsOverview() {
   const handleGeneratePDF = async (reportId: string) => {
     setIsGeneratingPDF(reportId)
     try {
-      await generatePDF(reportId, selectedReport, setIsGeneratingPDF)
+      if (reportId === 'print-tasks' && selectedReport?.data?.report) {
+         await generatePrintTasksPDF(selectedReport.data.report)
+      } else {
+         await generatePDF(reportId, selectedReport, setIsGeneratingPDF)
+      }
     } catch (error) {
       console.error("Error generating PDF:", error)
       alert('Failed to generate PDF. Please try again.')
@@ -183,6 +187,25 @@ export function ReportsOverview() {
     generatePrintTasksPDF(data.report)
   }, [])
 
+  // Handle preview tasks
+  const handlePreviewTasks = useCallback(async (startDate: string, endDate: string) => {
+    const { apiClient } = await import('@/lib/api-client')
+    const response = await apiClient.get('/reports/print-tasks/', {
+      params: { start_date: startDate, end_date: endDate }
+    })
+    const data = response.data
+    if (!data.success || !data.report) {
+      throw new Error('Failed to fetch tasks data')
+    }
+    
+    setSelectedReport({
+      id: 'print-tasks',
+      data: data
+    })
+    setIsViewerOpen(true)
+    setShowPrintTasksModal(false)
+  }, [])
+
   // Escape key and backdrop click handling
   useEffect(() => {
     const handleEscapeKey = (event: KeyboardEvent) => {
@@ -266,6 +289,7 @@ export function ReportsOverview() {
         <PrintTasksModal
           onClose={() => setShowPrintTasksModal(false)}
           onPrint={handlePrintTasks}
+          onPreview={handlePreviewTasks}
         />
       )}
     </div>

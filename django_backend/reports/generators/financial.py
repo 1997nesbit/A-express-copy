@@ -306,10 +306,42 @@ class FinancialReportGenerator(ReportGeneratorBase):
             else 100
         )
 
+        # Monthly revenue
+        this_month_start = today.replace(day=1)
+        this_month_revenue = (
+            Payment.objects.filter(date__gte=this_month_start, amount__gt=0).aggregate(total=Sum("amount"))["total"] or 0
+        )
+        
+        last_month_end = this_month_start - timedelta(days=1)
+        last_month_start = last_month_end.replace(day=1)
+        last_month_revenue = (
+            Payment.objects.filter(date__gte=last_month_start, date__lte=last_month_end, amount__gt=0).aggregate(total=Sum("amount"))["total"] or 0
+        )
+        month_over_month_change = ((this_month_revenue - last_month_revenue) / last_month_revenue * 100) if last_month_revenue else 100
+
+        # Payment methods breakdown
+        today_payment_methods = list(
+            Payment.objects.filter(date=today, amount__gt=0)
+            .values("method__name")
+            .annotate(total=Sum("amount"))
+            .order_by("-total")
+        )
+
+        month_payment_methods = list(
+            Payment.objects.filter(date__gte=this_month_start, amount__gt=0)
+            .values("method__name")
+            .annotate(total=Sum("amount"))
+            .order_by("-total")
+        )
+
         return {
             "opening_balance": opening_balance,
             "today_revenue": today_revenue,
             "day_over_day_change": day_over_day_change,
             "today_expenditure": abs(today_expenditure),
             "expenditure_day_over_day_change": expenditure_day_over_day_change,
+            "this_month_revenue": this_month_revenue,
+            "month_over_month_change": month_over_month_change,
+            "today_payment_methods": today_payment_methods,
+            "month_payment_methods": month_payment_methods,
         }

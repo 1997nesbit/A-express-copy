@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
 import useSWR from 'swr'
 import { apiClient } from "@/lib/api-client"
+import { Textarea } from "@/components/ui/core/textarea"
 import { generateFinancialPDF, type PDFFinancialData } from "./financial-pdf"
 
 interface FinancialSummary {
@@ -342,6 +343,8 @@ export function FinancialSummaryPreview({ isOpen, onClose }: FinancialSummaryPre
     const [startDate, setStartDate] = useState<Date | undefined>(new Date())
     const [activeTab, setActiveTab] = useState('summary')
     const [isCalendarOpen, setIsCalendarOpen] = useState(false)
+    const [isExportModalOpen, setIsExportModalOpen] = useState(false)
+    const [reportSummary, setReportSummary] = useState('')
     const isMobile = useIsMobile()
 
     const { data: financialData, error, isLoading, mutate } = useSWR<FinancialSummary>(
@@ -366,11 +369,17 @@ export function FinancialSummaryPreview({ isOpen, onClose }: FinancialSummaryPre
     }
 
     const handleExport = () => {
+        setIsExportModalOpen(true)
+    };
+
+    const handleConfirmExport = () => {
         if (financialData && startDate) {
             const ob = financialData.opening_balance === undefined
                 ? undefined
                 : Number.parseFloat(financialData.opening_balance);
-            generateFinancialPDF(financialData as unknown as PDFFinancialData, startDate, ob);
+            generateFinancialPDF(financialData as unknown as PDFFinancialData, startDate, ob, reportSummary);
+            setIsExportModalOpen(false)
+            setReportSummary('')
         }
     };
 
@@ -481,6 +490,34 @@ export function FinancialSummaryPreview({ isOpen, onClose }: FinancialSummaryPre
                 </div>
 
                 {content}
+
+                {/* Export Summary Prompt Modal */}
+                <Dialog open={isExportModalOpen} onOpenChange={setIsExportModalOpen}>
+                    <DialogContent className="sm:max-w-[425px]">
+                        <DialogHeader>
+                            <DialogTitle>Export Report Summary</DialogTitle>
+                            <DialogDescription>
+                                Add an optional summary or note to be included in the PDF report.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                            <Textarea
+                                placeholder="Enter report summary (optional)..."
+                                value={reportSummary}
+                                onChange={(e) => setReportSummary(e.target.value)}
+                                className="min-h-[100px]"
+                            />
+                        </div>
+                        <div className="flex justify-end gap-3">
+                            <Button variant="outline" onClick={() => setIsExportModalOpen(false)}>
+                                Cancel
+                            </Button>
+                            <Button onClick={handleConfirmExport}>
+                                Export PDF
+                            </Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
             </DialogContent>
         </Dialog>
     )

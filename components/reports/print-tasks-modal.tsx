@@ -7,9 +7,10 @@ import { CalendarDays, FileText, Loader2, X } from "lucide-react"
 interface PrintTasksModalProps {
     onClose: () => void
     onPrint: (startDate: string, endDate: string) => Promise<void>
+    onPreview?: (startDate: string, endDate: string) => Promise<void>
 }
 
-export function PrintTasksModal({ onClose, onPrint }: Readonly<PrintTasksModalProps>) {
+export function PrintTasksModal({ onClose, onPrint, onPreview }: Readonly<PrintTasksModalProps>) {
     const [startDate, setStartDate] = useState("")
     const [endDate, setEndDate] = useState("")
     const [isLoading, setIsLoading] = useState(false)
@@ -24,6 +25,18 @@ export function PrintTasksModal({ onClose, onPrint }: Readonly<PrintTasksModalPr
             onClose()
         } catch {
             alert("Failed to generate PDF. Please try again.")
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    const handlePreview = async () => {
+        if (!isValid || !onPreview) return
+        setIsLoading(true)
+        try {
+            await onPreview(startDate, endDate)
+        } catch {
+            alert("Failed to generate preview. Please try again.")
         } finally {
             setIsLoading(false)
         }
@@ -89,7 +102,7 @@ export function PrintTasksModal({ onClose, onPrint }: Readonly<PrintTasksModalPr
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-3 justify-end">
+                <div className="flex gap-3 justify-end mt-4">
                     <Button
                         variant="outline"
                         onClick={onClose}
@@ -98,6 +111,16 @@ export function PrintTasksModal({ onClose, onPrint }: Readonly<PrintTasksModalPr
                     >
                         Cancel
                     </Button>
+                    {onPreview && (
+                        <Button
+                            variant="secondary"
+                            onClick={handlePreview}
+                            disabled={!isValid || isLoading}
+                            className="px-4 py-2"
+                        >
+                            Preview
+                        </Button>
+                    )}
                     <Button
                         onClick={handlePrint}
                         disabled={!isValid || isLoading}

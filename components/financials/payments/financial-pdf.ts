@@ -35,7 +35,12 @@ export interface PDFFinancialData {
     opening_balance: string;
 }
 
-export const generateFinancialPDF = async (financialData: PDFFinancialData, startDate: Date, openingBalance?: number) => {
+export const generateFinancialPDF = async (
+    financialData: PDFFinancialData, 
+    startDate: Date, 
+    openingBalance?: number,
+    reportSummary?: string
+) => {
     try {
         // Import jsPDF normally
         const { jsPDF } = await import('jspdf');
@@ -63,7 +68,20 @@ export const generateFinancialPDF = async (financialData: PDFFinancialData, star
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
         doc.text(`Period: ${format(startDate, 'MMM dd, yyyy')}`, margin, yPosition);
-        yPosition += 15;
+        yPosition += 10;
+
+        // Report Summary Description (if provided)
+        if (reportSummary && reportSummary.trim()) {
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'italic');
+            doc.setTextColor(100, 100, 100);
+            const splitSummary = doc.splitTextToSize(`Note: ${reportSummary}`, pageWidth - margin * 2);
+            doc.text(splitSummary, margin, yPosition);
+            yPosition += (splitSummary.length * 5) + 10;
+            doc.setTextColor(0, 0, 0); // Reset color
+        } else {
+            yPosition += 5;
+        }
 
         // Summary section
         doc.setFontSize(12);
@@ -158,6 +176,69 @@ export const generateFinancialPDF = async (financialData: PDFFinancialData, star
         });
 
         yPosition = (doc as any).lastAutoTable.finalY + 15;
+
+        // --- Breakdown by Payment Method ---
+        if (yPosition > 230) {
+            doc.addPage();
+            yPosition = 20;
+        }
+
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('PAYMENT METHODS BREAKDOWN', margin, yPosition);
+        yPosition += 8;
+
+        const methods = Array.from(new Set([
+            ...financialData.revenue.map(r => r.method_name || 'Unknown'),
+            ...financialData.expenditures.map(e => e.method_name || 'Unknown')
+        ]));
+
+        const methodRows = methods.map(method => {
+            const income = financialData.revenue
+                .filter(r => (r.method_name || 'Unknown') === method)
+                .reduce((sum, r) => sum + Number.parseFloat(r.amount), 0);
+            const expense = financialData.expenditures
+                .filter(e => (e.method_name || 'Unknown') === method)
+                .reduce((sum, e) => sum + Math.abs(Number.parseFloat(e.amount)), 0);
+            return [
+                method,
+                income.toLocaleString('en-US'),
+                expense.toLocaleString('en-US'),
+                (income - expense).toLocaleString('en-US')
+            ];
+        });
+
+        // Add Total row
+        const totalIncome = financialData.revenue.reduce((sum, r) => sum + Number.parseFloat(r.amount), 0);
+        const totalExpense = financialData.expenditures.reduce((sum, e) => sum + Math.abs(Number.parseFloat(e.amount)), 0);
+        methodRows.push([
+            'Total',
+            totalIncome.toLocaleString('en-US'),
+            totalExpense.toLocaleString('en-US'),
+            (totalIncome - totalExpense).toLocaleString('en-US')
+        ]);
+
+        autoTable(doc, {
+            startY: yPosition,
+            head: [['Method', 'Income (TZS)', 'Expenditure (TZS)', 'Net (TZS)']],
+            body: methodRows,
+            margin: { left: margin, right: margin },
+            styles: { fontSize: 8, cellPadding: 2 },
+            headStyles: { fillColor: [108, 117, 125] },
+            didParseCell: (data) => {
+                if (data.row.index === methodRows.length - 1) {
+                    data.cell.styles.fontStyle = 'bold';
+                }
+            },
+        });
+
+        yPosition = (doc as any).lastAutoTable.finalY + 15;
+
+        // Add new page if needed
+        if (yPosition > 200) {
+            doc.addPage();
+            yPosition = 20;
+        }
 
         // Income/Revenue Table
         doc.setFontSize(12);

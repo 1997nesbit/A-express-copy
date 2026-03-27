@@ -47,6 +47,7 @@ class ReportGeneratorBase:
     @staticmethod
     def _get_predefined_date_range(date_range, today):
         ranges = {
+            'today': (0, "Today"),
             'last_7_days': (7, "7 days"),
             'last_30_days': (30, "30 days"),
             'last_3_months': (90, "3 months"),
@@ -94,7 +95,7 @@ class ReportGeneratorBase:
         # Handle predefined date ranges
         start_date, duration_days, duration_description = ReportGeneratorBase._get_predefined_date_range(date_range, today)
         end_date = today
-        if date_range not in ['last_7_days', 'last_30_days', 'last_3_months', 'last_6_months', 'last_year']:
+        if date_range not in ['today', 'last_7_days', 'last_30_days', 'last_3_months', 'last_6_months', 'last_year']:
             actual_range = 'last_30_days'
         
         start_datetime = ReportGeneratorBase._make_datetime_aware(datetime.combine(start_date, time.min))

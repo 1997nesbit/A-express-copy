@@ -321,10 +321,11 @@ export function useTechnicianTasks(
   isWorkshopTech: boolean = false,
   activeTab: string = "in-progress",
   page: number = 1,
-  search?: string
+  search?: string,
+  workshopStatus?: string // Added workshopStatus
 ) {
   return useQuery<PaginatedTasks>({
-    queryKey: ['technicianTasks', userId, isWorkshopTech, activeTab, page, search],
+    queryKey: ['technicianTasks', userId, isWorkshopTech, activeTab, page, search, workshopStatus],
     queryFn: async () => {
       if (!userId) return { count: 0, next: null, previous: null, results: [] };
 
@@ -344,6 +345,11 @@ export function useTechnicianTasks(
           // Regular technicians see tasks assigned to them
           params.assigned_to = userId;
           params.status = "In Progress";
+        }
+
+        // Add workshop status filter if provided and not "all"
+        if (workshopStatus && workshopStatus !== "all") {
+          params.workshop_status = workshopStatus;
         }
       } else if (activeTab === 'completed') {
         params.assigned_to = userId;

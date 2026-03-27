@@ -63,7 +63,9 @@ class ReportGenerator:
             start_date = custom_start
             end_date = custom_end
         else:
-            if date_range == 'last_7_days':
+            if date_range == 'today':
+                start_date = now - timedelta(days=0)
+            elif date_range == 'last_7_days':
                 start_date = now - timedelta(days=7)
             elif date_range == 'last_30_days':
                 start_date = now - timedelta(days=30)

@@ -113,6 +113,7 @@ def get_report_field_options(request):
             {"id": "location", "label": "Current Location", "category": "basic"},
         ],
         "dateRanges": [
+            {"value": "today", "label": "Today"},
             {"value": "last_7_days", "label": "Last 7 Days"},
             {"value": "last_30_days", "label": "Last 30 Days"},
             {"value": "last_3_months", "label": "Last 3 Months"},

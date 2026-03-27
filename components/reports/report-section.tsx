@@ -46,6 +46,9 @@ export function ReportSection({
             const start = new Date()
 
             switch (presetRange) {
+                case 'today':
+                    // Start and end are already both initialized to current time (today)
+                    break
                 case 'week':
                     start.setDate(end.getDate() - 7)
                     break

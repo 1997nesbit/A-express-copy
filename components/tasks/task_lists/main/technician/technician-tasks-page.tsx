@@ -11,6 +11,13 @@ import { Button } from "@/components/ui/core/button"
 import { TasksDisplay } from "@/components/tasks/task_utils/tasks-display"
 import { Input } from "@/components/ui/core/input"
 import { Search } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/core/select"
 
 function PaginationControls({
   taskCount,
@@ -61,7 +68,8 @@ function TaskListCard({
   tasks,
   children,
   searchQuery,
-  onSearchChange
+  onSearchChange,
+  extraFilter
 }: Readonly<{
   title: string
   description: string
@@ -69,6 +77,7 @@ function TaskListCard({
   children?: React.ReactNode
   searchQuery: string
   onSearchChange: (query: string) => void
+  extraFilter?: React.ReactNode
 }>) {
   return (
     <Card>
@@ -77,8 +86,8 @@ function TaskListCard({
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>
-        {/* Search Input - Added for visibility */}
-        <div className="mb-4">
+        {/* Search Input and Filters */}
+        <div className="mb-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
           <div className="relative w-full max-w-sm">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -88,6 +97,7 @@ function TaskListCard({
               className="pl-8"
             />
           </div>
+          {extraFilter}
         </div>
 
         {/* Task List */}
@@ -122,6 +132,7 @@ export function TechnicianTasksPage() {
   const activeTab = activeTabParam || "in-progress"
 
   const [searchQuery, setSearchQuery] = useState("")
+  const [workshopStatus, setWorkshopStatus] = useState("all")
   const [pages, setPages] = useState<Record<string, number>>({
     'in-progress': 1,
     'completed': 1,
@@ -132,6 +143,7 @@ export function TechnicianTasksPage() {
   const handleTabChange = (value: string) => {
     const params = new URLSearchParams(searchParams)
     params.set("tab", value)
+    setWorkshopStatus("all") // Reset filter on tab change
     router.replace(`${pathname}?${params.toString()}`)
   }
 
@@ -152,7 +164,7 @@ export function TechnicianTasksPage() {
     isLoading,
     isError,
     error
-  } = useTechnicianTasks(userId, isWorkshopTech, activeTab, currentPage, searchQuery)
+  } = useTechnicianTasks(userId, isWorkshopTech, activeTab, currentPage, searchQuery, workshopStatus)
 
   const tasks = tasksData?.results || []
   const count = tasksData?.count || 0
@@ -184,6 +196,20 @@ export function TechnicianTasksPage() {
       tasks={tasks}
       searchQuery={searchQuery}
       onSearchChange={handleSearchChange}
+      extraFilter={activeTab === 'in-progress' && (
+        <div className="w-full sm:w-48">
+          <Select value={workshopStatus} onValueChange={setWorkshopStatus}>
+            <SelectTrigger>
+              <SelectValue placeholder="Workshop Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Tasks</SelectItem>
+              <SelectItem value="In Workshop">In Workshop</SelectItem>
+         
+            </SelectContent>
+          </Select>
+        </div>
+      )}
     >
       <PaginationControls
         taskCount={tasks.length}

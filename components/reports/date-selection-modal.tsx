@@ -77,6 +77,7 @@ export function DateSelectionModal({
                             onChange={(e) => onPresetRangeChange(e.target.value)}
                             className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                         >
+                            <option value="today">Today</option>
                             <option value="week">Last 7 days</option>
                             <option value="month">Last 30 days</option>
                             <option value="quarter">Last 3 months</option>

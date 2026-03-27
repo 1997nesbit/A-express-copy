@@ -8,6 +8,7 @@ import { PaymentMethodsPreview } from "./payment-methods-preview"
 import { TaskExecutionPreview } from "./task-execution-preview"
 import { GenericReportPreview } from "./generic-report-preview"
 import { FrontDeskPerformancePreview } from "./front-desk-performance-preview"
+import { PrintTasksPreview } from "./print-tasks-preview"
 import type {
     OutstandingPaymentsReport,
     TechnicianPerformanceReport,
@@ -62,6 +63,8 @@ export const ReportPreview = ({
             return <PaymentMethodsPreview report={data as PaymentMethodsReport} />
         case "front_desk_performance":
             return <FrontDeskPerformancePreview data={data as FrontDeskPerformanceReport} />
+        case "print_tasks":
+            return <PrintTasksPreview report={data} />
         default:
             return <GenericReportPreview report={data} />
     }
