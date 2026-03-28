@@ -35,24 +35,11 @@ sys.path.insert(0, str(PROJECT_ROOT))
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get("SECRET_KEY")
 if not SECRET_KEY:
-<<<<<<< HEAD
     from django.core.exceptions import ImproperlyConfigured
     raise ImproperlyConfigured(
         "The SECRET_KEY environment variable is required. "
         "Set it in your environment or .env file."
     )
-=======
-    # Allow a development-only fallback when DEBUG would be True
-    if os.environ.get("DEBUG", "False").lower() in ("true", "1", "yes"):
-        SECRET_KEY = "dev-only-insecure-key-do-not-use-in-production"
-    else:
-        from django.core.exceptions import ImproperlyConfigured
-
-        raise ImproperlyConfigured(
-            "The SECRET_KEY environment variable is required. "
-            "Set it in your environment or .env file."
-        )
->>>>>>> upstream/main
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get("DEBUG", "False").lower() in ("true", "1", "yes")
@@ -68,22 +55,13 @@ if not DEBUG:
     # Railway uses a reverse proxy - trust X-Forwarded-Proto header
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
-<<<<<<< HEAD
     # DON'T redirect HTTP→HTTPS - Railway's proxy handles this
-=======
-    # DON'T redirect HTTPâ†’HTTPS - Railway's proxy handles this
->>>>>>> upstream/main
     # Setting this to True causes redirect loops with Railway
     SECURE_SSL_REDIRECT = False
 
     # Secure cookies - only send over HTTPS
-<<<<<<< HEAD
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
-=======
-    SESSION_COOKIE_SECURE = False
-    CSRF_COOKIE_SECURE = False
->>>>>>> upstream/main
 
     # Prevent browsers from guessing content types
     SECURE_CONTENT_TYPE_NOSNIFF = True
@@ -188,15 +166,10 @@ INSTALLED_APPS = [
     "messaging",  # SMS messaging via Briq
     "settings",  # System settings
     "notifications",  # WebSocket notifications
-<<<<<<< HEAD
     'django_extensions',
     'django_apscheduler',  # Background task scheduling
     # Debug tools - only enabled in development
     *(['debug_toolbar', 'silk'] if DEBUG else []),
-=======
-    "django_extensions",
-    "django_apscheduler",  # Background task scheduling
->>>>>>> upstream/main
 ]
 
 MIDDLEWARE = [
@@ -513,7 +486,6 @@ BRIQ_SENDER_ID = os.environ.get("BRIQ_SENDER_ID", "A-EXPRESS")
 # =============================================================================
 APSCHEDULER_DATETIME_FORMAT = "N j, Y, f:s a"
 APSCHEDULER_RUN_NOW_TIMEOUT = 25  # Seconds
-<<<<<<< HEAD
 
 # =============================================================================
 # Django Debug Toolbar Configuration
@@ -522,5 +494,3 @@ INTERNAL_IPS = [
     '127.0.0.1',
 ]
 
-=======
->>>>>>> upstream/main
