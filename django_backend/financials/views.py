@@ -631,19 +631,13 @@ class FinancialSummaryView(APIView):
         total_expenditures_raw = expenditure_payments.aggregate(total=Sum("amount"))["total"] or 0
         total_expenditures = abs(total_expenditures_raw)
 
-        # Opening balance = net balance of the previous day (revenue - expenditures)
-        previous_day = selected_date - timedelta(days=1)
-        prev_revenue = Payment.objects.filter(date=previous_day, amount__gt=0).aggregate(
-            total=Sum("amount")
-        )["total"] or 0
-        prev_expenditures = abs(
-            Payment.objects.filter(date=previous_day, amount__lt=0).aggregate(
-                total=Sum("amount")
-            )["total"] or 0
+        # Opening balance = cumulative net balance of all days BEFORE the selected date
+        opening_balance = (
+            Payment.objects.filter(date__lt=selected_date).aggregate(total=Sum("amount"))["total"] or 0
         )
-        opening_balance = prev_revenue - prev_expenditures
 
-        # Opening balance counts as part of revenue for the day
+        # Closing balance (net_balance) = Opening Balance + Today's Revenue - Today's Expenditures
+        # Since total_expenditures is absolute, we subtract it.
         net_balance = opening_balance + total_revenue - total_expenditures
 
         # Prepare response data - using unified Payment serializer format
@@ -703,4 +697,3 @@ class AccountantDashboardStats(APIView):
             "pending_payment_count": pending_payment_count,
         }
         return Response(data)
-

@@ -104,10 +104,18 @@ export const generateFinancialPDF = async (
         doc.text(`Total Expenditures: TZS ${Number.parseFloat(financialData.total_expenditures).toLocaleString('en-US')}`, margin, yPosition);
         yPosition += 6;
 
+        // Add Net Profit/Loss for Today
+        const todayProfitLoss = Number.parseFloat(financialData.total_revenue) - Number.parseFloat(financialData.total_expenditures);
+        const profitColor = todayProfitLoss >= 0 ? [0, 128, 0] : [255, 0, 0];
+        doc.setTextColor(profitColor[0], profitColor[1], profitColor[2]);
+        doc.text(`Net Profit/Loss (Today): TZS ${todayProfitLoss.toLocaleString('en-US')}`, margin, yPosition);
+        doc.setTextColor(0, 0, 0);
+        yPosition += 8;
+
         const netBalance = Number.parseFloat(financialData.net_balance);
         const balanceColor = netBalance >= 0 ? [0, 128, 0] : [255, 0, 0];
         doc.setTextColor(balanceColor[0], balanceColor[1], balanceColor[2]);
-        doc.text(`Net Balance: TZS ${netBalance.toLocaleString('en-US')}`, margin, yPosition);
+        doc.text(`Closing Balance: TZS ${netBalance.toLocaleString('en-US')}`, margin, yPosition);
         doc.setTextColor(0, 0, 0);
         yPosition += 15;
 

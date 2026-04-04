@@ -101,7 +101,7 @@ function SummaryCards({ financialData }: { readonly financialData: FinancialSumm
 
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Net Balance</CardTitle>
+                    <CardTitle className="text-sm font-medium">Closing Balance</CardTitle>
                     <DollarSign className="h-4 w-4 text-blue-500" />
                 </CardHeader>
                 <CardContent>
@@ -149,17 +149,44 @@ function SummaryTab({ financialData }: { readonly financialData: FinancialSummar
                                 <span className="font-medium">Total Transactions:</span>
                                 <span className="ml-2">{financialData.revenue.length + financialData.expenditures.length}</span>
                             </div>
+
+                            <div className="col-span-2 border-t pt-2 mt-2">
+                                <span className="font-medium text-muted-foreground uppercase text-[10px] tracking-wider">Balance Carryover</span>
+                            </div>
+
                             <div>
                                 <span className="font-medium">Opening Balance:</span>
                                 <span className="ml-2">{formatCurrency(financialData.opening_balance)}</span>
                             </div>
                             <div>
-                                <span className="font-medium">Net Profit/Loss:</span>
+                                <span className="font-medium text-blue-600">Closing Balance:</span>
                                 <Badge
                                     variant={getNetBalanceVariant(financialData.net_balance)}
                                     className="ml-2"
                                 >
                                     {formatCurrency(financialData.net_balance)}
+                                </Badge>
+                            </div>
+
+                            <div className="col-span-2 border-t pt-2 mt-2">
+                                <span className="font-medium text-muted-foreground uppercase text-[10px] tracking-wider">Day's Performance</span>
+                            </div>
+
+                            <div>
+                                <span className="font-medium">Today's Revenue:</span>
+                                <span className="ml-2 text-green-600 font-medium">{formatCurrency(financialData.total_revenue)}</span>
+                            </div>
+                            <div>
+                                <span className="font-medium">Today's Expenditures:</span>
+                                <span className="ml-2 text-red-600 font-medium">{formatCurrency(financialData.total_expenditures)}</span>
+                            </div>
+                            <div className="col-span-2 flex items-center">
+                                <span className="font-medium">Net Profit/Loss (Today):</span>
+                                <Badge
+                                    variant={Number.parseFloat(financialData.total_revenue) - Number.parseFloat(financialData.total_expenditures) >= 0 ? 'default' : 'destructive'}
+                                    className="ml-2"
+                                >
+                                    {formatCurrency(Number.parseFloat(financialData.total_revenue) - Number.parseFloat(financialData.total_expenditures))}
                                 </Badge>
                             </div>
                         </div>
