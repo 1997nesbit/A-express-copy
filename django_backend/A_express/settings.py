@@ -307,7 +307,7 @@ else:
         DATABASES = {
             "default": {
                 "ENGINE": "django.db.backends.postgresql",
-                "NAME": "Inventory2",
+                "NAME": "Inventory 2",
                 "USER": "postgres",
                 "PASSWORD": "ivan123",
                 "HOST": "localhost",
